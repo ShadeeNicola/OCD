@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCD - One Click Deployer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()">🌙 Dark</button>
+<div class="container">
+    <h1>OCD - One Click Deployer</h1>
+    <p>Welcome to your deployment tool!</p>
+
+    <div class="form-group">
+        <label for="folder-path">Project Folder:</label>
+        <form autocomplete="on">
+            <div class="folder-input">
+                <div class="input-container">
+                    <input type="text" id="folder-path" name="folder-path" placeholder="Select your git repository folder..." autocomplete="on">
+                    <div id="history-dropdown" class="history-dropdown"></div>
+                </div>
+                <button type="button" id="browse-btn">Browse</button>
+            </div>
+        </form>
+        <div id="manual-input-note" class="manual-input-note" style="display: none;">
+            You can also manually type or paste the folder path above.
+        </div>
+    </div>
+
+    <button id="deploy-btn" disabled>Deploy Changes</button>
+
+    <div id="status-message" class="status-message" style="display: none;"></div>
+
+    <!-- Progress Bar Section -->
+    <div id="progress-bar-section" class="progress-bar-section" style="display: none;">
+        <div class="progress-bar-container">
+            <div class="progress-bar-header">
+                <span id="progress-text">Initializing deployment...</span>
+                <span id="progress-percentage">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div id="progress-bar-fill" class="progress-bar-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deployment Progress Section -->
+    <div id="deployment-section" class="deployment-section" style="display: none;">
+        <div class="deployment-header">
+            <h3>Deployment Progress</h3>
+            <div class="deployment-controls">
+                <button id="toggle-output-btn" class="toggle-btn">Show Output</button>
+                <button id="save-output-btn" class="save-btn" disabled>Save Output</button>
+            </div>
+        </div>
+
+        <!-- Progress Overview -->
+        <div id="progress-overview" class="progress-overview"></div>
+
+        <!-- Output Window -->
+        <div id="output-window" class="output-window" style="display: none;">
+            <div class="output-header">
+                <span>Script Output</span>
+            </div>
+            <div id="output-content" class="output-content"></div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
