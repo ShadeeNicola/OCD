@@ -12,7 +12,6 @@ func handleBrowse(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
 	selectedPath, err := openFolderDialog()
 	if err != nil {
 		response := BrowseResponse{

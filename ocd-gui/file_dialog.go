@@ -20,6 +20,7 @@ func openFolderDialog() (string, error) {
 }
 
 func openFolderDialogWindows() (string, error) {
+
 	psScript := `
 Add-Type -AssemblyName System.Windows.Forms
 $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
@@ -33,7 +34,9 @@ if ($result -eq [System.Windows.Forms.DialogResult]::OK) {
 }
 `
 	cmd := exec.Command("powershell", "-Command", psScript)
+
 	output, err := cmd.Output()
+
 	if err != nil {
 		return "", err
 	}

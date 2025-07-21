@@ -100,7 +100,6 @@ export class ProgressManager {
     }
 
     handleProgressUpdate(data) {
-        console.log('Progress update received:', data);
 
         if (data.stage && data.status) {
             if (data.service) {

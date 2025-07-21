@@ -1,5 +1,5 @@
 import { CONFIG } from './constants.js';
-import { createWebSocketUrl, generateTimestamp, downloadTextFile } from './utils.js';
+import { createWebSocketUrl, generateTimestamp, downloadTextFile, ansiToHtml } from './utils.js';
 import { HistoryManager } from './history-manager.js';
 import { ProgressManager } from './progress-manager.js';
 
@@ -235,13 +235,15 @@ class OCDApp {
     }
 
     appendOutput(content, type = 'normal') {
-        const cleanContent = content.replace(/\x1b\[[0-9;]*m/g, '');
+        const coloredContent = ansiToHtml(content);
         const line = document.createElement('div');
         line.className = `output-line ${type}`;
-        line.textContent = cleanContent;
+        line.innerHTML = coloredContent; // Use innerHTML instead of textContent
         this.outputContent.appendChild(line);
         this.outputContent.scrollTop = this.outputContent.scrollHeight;
 
+        // For saving, still use clean content
+        const cleanContent = content.replace(/\x1b\[[0-9;]*m/g, '');
         this.currentDeploymentOutput += cleanContent + '\n';
         this.saveOutputBtn.disabled = false;
     }
