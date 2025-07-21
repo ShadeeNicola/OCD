@@ -7,15 +7,20 @@ import (
 	"runtime"
 )
 
+var appConfig *Config
+
 func main() {
+	// Load configuration
+	appConfig = loadConfig()
+
 	setupRoutes()
 
-	port := "8080"
-	fmt.Printf("Server starting on http://localhost:%s\n", port)
+	fmt.Printf("Server starting on http://localhost:%s\n", appConfig.Port)
 	fmt.Printf("Operating System: %s\n", runtime.GOOS)
-	fmt.Println("Open your browser and go to: http://localhost:8080")
+	fmt.Printf("WSL User: %s\n", appConfig.WSLUser)
+	fmt.Println("Open your browser and go to: http://localhost:" + appConfig.Port)
 
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+appConfig.Port, nil))
 }
 
 func setupRoutes() {

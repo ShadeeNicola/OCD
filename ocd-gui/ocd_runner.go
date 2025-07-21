@@ -13,6 +13,19 @@ import (
 )
 
 func runOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn) {
+	// Validate folder path first
+	if err := validateFolderPath(folderPath); err != nil {
+		writeToWebSocket(conn, OutputMessage{
+			Type:    "complete",
+			Content: fmt.Sprintf("Invalid folder path: %s", err.Error()),
+			Success: false,
+		})
+		return
+	}
+
+	// Sanitize the path
+	safeFolderPath := sanitizePath(folderPath)
+
 	currentDir, err := os.Getwd()
 	if err != nil {
 		writeToWebSocket(conn, OutputMessage{
@@ -31,12 +44,12 @@ func runOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn) {
 	switch runtime.GOOS {
 	case "windows":
 		if _, err := exec.LookPath("wsl"); err == nil {
-			wslPath := convertToWSLPath(folderPath)
+			wslPath := convertToWSLPath(safeFolderPath)
 			ocdScriptWSLPath := convertToWSLPath(ocdScriptPath)
 
-			cmd = exec.Command("wsl", "--user", "k8s", "bash", "-l", "-c",
-				fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on && cp "%s" "%s/OCD.sh" && chmod +x "%s/OCD.sh" && cd "%s" && ./OCD.sh`,
-					ocdScriptWSLPath, wslPath, wslPath, wslPath))
+			// Use exec.Command with separate arguments for security
+			cmd = exec.Command("wsl", "--user", appConfig.WSLUser, "bash", "-l", "-c",
+				buildSecureWSLCommand(ocdScriptWSLPath, wslPath))
 		} else {
 			writeToWebSocket(conn, OutputMessage{
 				Type:    "complete",
@@ -48,8 +61,7 @@ func runOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn) {
 
 	case "linux":
 		cmd = exec.Command("bash", "-l", "-c",
-			fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on && cp "%s" "%s/OCD.sh" && chmod +x "%s/OCD.sh" && cd "%s" && ./OCD.sh`,
-				ocdScriptPath, folderPath, folderPath, folderPath))
+			buildSecureLinuxCommand(ocdScriptPath, safeFolderPath))
 
 	default:
 		writeToWebSocket(conn, OutputMessage{
@@ -157,6 +169,20 @@ func runOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn) {
 	})
 }
 
+// buildSecureWSLCommand creates a secure command string for WSL
+func buildSecureWSLCommand(scriptPath, folderPath string) string {
+	// Use single quotes to prevent shell interpretation
+	return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on && cp '%s' '%s/OCD.sh' && chmod +x '%s/OCD.sh' && cd '%s' && ./OCD.sh`,
+		scriptPath, folderPath, folderPath, folderPath)
+}
+
+// buildSecureLinuxCommand creates a secure command string for Linux
+func buildSecureLinuxCommand(scriptPath, folderPath string) string {
+	// Use single quotes to prevent shell interpretation
+	return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on && cp '%s' '%s/OCD.sh' && chmod +x '%s/OCD.sh' && cd '%s' && ./OCD.sh`,
+		scriptPath, folderPath, folderPath, folderPath)
+}
+
 func convertToWSLPath(windowsPath string) string {
 	if runtime.GOOS != "windows" {
 		return windowsPath // Return as-is for Linux
@@ -171,8 +197,18 @@ func convertToWSLPath(windowsPath string) string {
 	}
 	return wslPath
 }
-
 func runOCDScript(folderPath string) Response {
+	// Validate folder path first
+	if err := validateFolderPath(folderPath); err != nil {
+		return Response{
+			Message: fmt.Sprintf("Invalid folder path: %s", err.Error()),
+			Success: false,
+		}
+	}
+
+	// Sanitize the path
+	safeFolderPath := sanitizePath(folderPath)
+
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return Response{
@@ -190,12 +226,11 @@ func runOCDScript(folderPath string) Response {
 	case "windows":
 		// Check if WSL is available
 		if _, err := exec.LookPath("wsl"); err == nil {
-			wslPath := convertToWSLPath(folderPath)
+			wslPath := convertToWSLPath(safeFolderPath)
 			ocdScriptWSLPath := convertToWSLPath(ocdScriptPath)
 
-			cmd = exec.Command("wsl", "--user", "k8s", "bash", "-l", "-c",
-				fmt.Sprintf(`proxy on && cp "%s" "%s/OCD.sh" && chmod +x "%s/OCD.sh" && cd "%s" && ./OCD.sh`,
-					ocdScriptWSLPath, wslPath, wslPath, wslPath))
+			cmd = exec.Command("wsl", "--user", appConfig.WSLUser, "bash", "-l", "-c",
+				buildSecureWSLCommand(ocdScriptWSLPath, wslPath))
 		} else {
 			return Response{
 				Message: "WSL not available on Windows. Please install WSL to use OCD.",
@@ -205,8 +240,7 @@ func runOCDScript(folderPath string) Response {
 
 	case "linux":
 		cmd = exec.Command("bash", "-l", "-c",
-			fmt.Sprintf(`proxy on && cp "%s" "%s/OCD.sh" && chmod +x "%s/OCD.sh" && cd "%s" && ./OCD.sh`,
-				ocdScriptPath, folderPath, folderPath, folderPath))
+			buildSecureLinuxCommand(ocdScriptPath, safeFolderPath))
 
 	default:
 		return Response{
