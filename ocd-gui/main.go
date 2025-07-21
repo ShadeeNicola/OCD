@@ -33,6 +33,7 @@ func setupRoutes() {
 	http.Handle("/", http.FileServer(http.Dir("./web/")))
 	http.HandleFunc("/api/browse", handleBrowse)
 	http.HandleFunc("/api/deploy", handleDeploy)
+	http.HandleFunc("/api/health", handleHealth)
 	http.HandleFunc("/ws/deploy", handleWebSocketDeploy)
 	appLogger.Info("Routes configured successfully")
 }

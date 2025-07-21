@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -19,10 +20,23 @@ func loadConfig() *Config {
 		Port:           getEnvOrDefault("OCD_PORT", "8080"),
 		WSLUser:        getEnvOrDefault("OCD_WSL_USER", "k8s"),
 		ScriptName:     getEnvOrDefault("OCD_SCRIPT_NAME", "OCD.sh"),
-		AllowedOrigins: []string{"*"}, // TODO: Make this configurable
-		MaxOutputLines: getEnvIntOrDefault("OCD_MAX_OUTPUT_LINES", 1000),
+		AllowedOrigins: getAllowedOrigins(),
 		CommandTimeout: getEnvIntOrDefault("OCD_COMMAND_TIMEOUT", 1800), // 30 minutes
 	}
+}
+
+func getAllowedOrigins() []string {
+	originsEnv := getEnvOrDefault("OCD_ALLOWED_ORIGINS", "localhost,127.0.0.1")
+	if originsEnv == "*" {
+		return []string{"*"} // Allow all if explicitly set
+	}
+
+	origins := strings.Split(originsEnv, ",")
+	var cleanOrigins []string
+	for _, origin := range origins {
+		cleanOrigins = append(cleanOrigins, strings.TrimSpace(origin))
+	}
+	return cleanOrigins
 }
 
 func getEnvOrDefault(key, defaultValue string) string {

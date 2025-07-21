@@ -66,6 +66,10 @@ class OCDApp {
 
         // Window events
         window.addEventListener('load', () => this.handleWindowLoad());
+
+        // Add cleanup on page unload
+        window.addEventListener('beforeunload', () => this.cleanup());
+        window.addEventListener('unload', () => this.cleanup());
     }
 
     handleFolderInputClick(e) {
@@ -151,62 +155,86 @@ class OCDApp {
         this.lastDeploymentStatus = null;
         this.statusMessage.style.display = 'none';
 
+        // Show deployment sections
+        this.deploymentSection.style.display = 'block';
+        this.progressBarSection.style.display = 'block';
+        this.progressOverview.style.display = 'block';
+        
+        // Clear previous output and reset progress
+        this.clearOutput();
+        this.progressManager.reset();
+        this.progressManager.initialize(); // Add this line
+
         this.deployBtn.disabled = true;
         this.deployBtn.textContent = 'Deploying...';
 
         const folderPath = this.folderInput.value.trim();
-        this.startWebSocketDeployment(folderPath);
-    }
 
-    startWebSocketDeployment(folderPath) {
+        // Debug the WebSocket URL
         const wsUrl = createWebSocketUrl();
+        console.log('WebSocket URL:', wsUrl);
+
+        // Create WebSocket connection
         this.websocket = new WebSocket(wsUrl);
 
-        this.websocket.onopen = () => this.handleWebSocketOpen(folderPath);
+        this.websocket.onopen = () => {
+            console.log('WebSocket connected');
+            // Send the folder path
+            this.websocket.send(JSON.stringify({ folderPath: folderPath }));
+        };
+
         this.websocket.onmessage = (event) => this.handleWebSocketMessage(event);
-        this.websocket.onerror = (error) => this.handleWebSocketError(error);
         this.websocket.onclose = () => this.handleWebSocketClose();
-    }
-
-    handleWebSocketOpen(folderPath) {
-        this.websocket.send(JSON.stringify({ folderPath: folderPath }));
-
-        this.deploymentSection.style.display = 'block';
-        this.progressManager.initialize();
-        this.clearOutput();
-
-        this.progressBarSection.style.display = 'block';
-        this.progressManager.updateProgressBar(0, 'Initializing deployment...');
+        this.websocket.onerror = (error) => this.handleWebSocketError(error);
     }
 
     handleWebSocketMessage(event) {
-        const data = JSON.parse(event.data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log('Received WebSocket message:', data); // Debug log
 
-        switch (data.type) {
-            case 'output':
-                this.appendOutput(data.content);
-                break;
+            switch (data.type) {
+                case 'output':
+                    console.log('Processing output:', data.content); // Debug log
+                    this.appendOutput(data.content);
+                    break;
 
-            case 'progress':
-                this.progressManager.handleProgressUpdate(data);
-                break;
+                case 'progress':
+                    console.log('Processing progress:', data); // Debug log
+                    this.progressManager.handleProgressUpdate(data);
+                    break;
 
-            case 'complete':
-                this.handleDeploymentComplete(data);
-                break;
+                case 'complete':
+                    console.log('Processing completion:', data); // Debug log
+                    this.handleDeploymentComplete(data);
+                    break;
+
+                default:
+                    console.warn('Unknown message type:', data.type);
+            }
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+            this.showStatus('Error processing server response', 'error');
+            this.resetDeployButton();
         }
     }
 
     handleWebSocketError(error) {
         console.error('WebSocket error:', error);
-        this.showStatus('WebSocket connection error', 'error', true);
+        this.showStatus('Connection error occurred', 'error');
         this.resetDeployButton();
+        this.cleanup();
     }
 
     handleWebSocketClose() {
+        console.log('WebSocket connection closed');
+        // Only show error if deployment was still in progress
         if (this.deployBtn.textContent === 'Deploying...') {
             this.resetDeployButton();
+            this.showStatus('Connection lost during deployment', 'error');
+            this.cleanup(); // Only cleanup on error
         }
+        // Just close the websocket connection, don't reset progress
         this.websocket = null;
     }
 
@@ -303,6 +331,13 @@ class OCDApp {
             </button>
         `;
         document.body.appendChild(footer);
+    }
+
+    cleanup() {
+        if (this.websocket) {
+            this.websocket.close();
+            this.websocket = null;
+        }
     }
 }
 

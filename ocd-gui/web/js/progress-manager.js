@@ -150,4 +150,26 @@ export class ProgressManager {
             this.updateProgressBar(0, `${stage} failed`);
         }
     }
+
+    reset() {
+        // Clear all progress items
+        this.currentProgressItems.clear();
+        
+        // Reset stage status
+        this.stageStatus = {
+            prerequisites: 'pending',
+            settings: 'pending',
+            build: 'pending',
+            deploy: 'pending',
+            patch: 'pending'
+        };
+        
+        // Clear progress overview
+        if (this.progressOverview) {
+            this.progressOverview.innerHTML = '';
+        }
+        
+        // Reset progress bar
+        this.updateProgressBar(0, 'Initializing deployment...');
+    }
 }
