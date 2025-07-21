@@ -1,6 +1,22 @@
 # OCD - One Click Deployer
 
-A GUI-based deployment tool that automatically detects changed microservices in Git repositories and deploys them to Kubernetes clusters with real-time progress tracking.
+A GUI-based deployment tool that simplifies the deployment process with real-time progress tracking and an intuitive web interface.
+
+## Quick Start - Download & Run
+
+### For Windows Users
+1. Download `OCD.exe`
+2. Double-click to run
+3. Your browser will open automatically
+4. **Requirements**: WSL (Windows Subsystem for Linux) must be installed
+
+### For Linux Users
+1. Download `OCD-Tool-Linux`
+2. Make it executable:
+chmod +x OCD-Tool-Linux
+3. Run the tool:
+./OCD-Tool-Linux
+4. Your browser will open automatically
 
 ## Features
 
@@ -23,6 +39,6 @@ A GUI-based deployment tool that automatically detects changed microservices in 
 ## Installation
 
 1. Clone the repository:
-```bash
+
 git clone <your-repo-url>
 cd OCD

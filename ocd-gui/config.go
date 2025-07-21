@@ -17,7 +17,7 @@ type Config struct {
 
 func loadConfig() *Config {
 	return &Config{
-		Port:           getEnvOrDefault("OCD_PORT", "8080"),
+		Port:           getEnvOrDefault("OCD_PORT", "2111"),
 		WSLUser:        getEnvOrDefault("OCD_WSL_USER", "k8s"),
 		ScriptName:     getEnvOrDefault("OCD_SCRIPT_NAME", "OCD.sh"),
 		AllowedOrigins: getAllowedOrigins(),
