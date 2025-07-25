@@ -190,6 +190,7 @@ get_corporate_ip() {
         return 1
     fi
 
+    # Try eth0 first
     local corp_ip=$(ifconfig eth0 2>/dev/null | grep 'inet ' | awk '{print $2}' | head -1)
 
     if [[ -n "$corp_ip" && "$corp_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
@@ -197,10 +198,17 @@ get_corporate_ip() {
         return 0
     fi
 
-    write_colored_output "Error: Could not find corporate IP address from eth0" "red" >&2
+    # If eth0 not found or no valid IP, try eth1
+    corp_ip=$(ifconfig eth1 2>/dev/null | grep 'inet ' | awk '{print $2}' | head -1)
+
+    if [[ -n "$corp_ip" && "$corp_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$corp_ip"
+        return 0
+    fi
+
+    write_colored_output "Error: Could not find corporate IP address from eth0 or eth1" "red" >&2
     return 1
 }
-
 generate_docker_tag() {
     local timestamp=$(date +%Y%m%d-%H%M%S)
     local docker_tag="${WINDOWS_USER}-${timestamp}"
