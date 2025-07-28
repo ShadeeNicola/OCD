@@ -766,11 +766,12 @@ update_kubernetes_microservice() {
 
     # Try different service naming patterns
     local service_names=(
-        "${microservice_name}-service"
-        "${microservice_name}"
-        "${microservice_name}-ms"
-        "${microservice_name}-app"
-    )
+            "${namespace}-${microservice_name}"
+            "${microservice_name}-service"
+            "${microservice_name}"
+            "${microservice_name}-ms"
+            "${microservice_name}-app"
+        )
 
     local found_service=""
 
@@ -800,10 +801,10 @@ update_kubernetes_microservice() {
 
     local init_containers_output=$(bash -l -c "proxy on && kubectl get microservice '$found_service' -n '$namespace' -o jsonpath='{range .spec.template.spec.initContainers[*]}{@.name}{\"\n\"}{end}'" 2>/dev/null)
 
-    local init_container_index=$(echo "$init_containers_output" | grep -n "copy-application-files" | cut -d: -f1)
+    local init_container_index=$(echo "$init_containers_output" | grep -n -E "(copy-application-files|source-code)" | cut -d: -f1)
 
     if [[ -z "$init_container_index" ]]; then
-        write_colored_output "Error: copy-application-files initContainer not found" "red"
+        write_colored_output "Error: Neither copy-application-files nor source-code initContainer found" "red"
         write_colored_output "Available initContainers:" "red"
         echo "$init_containers_output"
         return 1

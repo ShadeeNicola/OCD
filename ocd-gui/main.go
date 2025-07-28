@@ -55,7 +55,7 @@ func main() {
 	}()
 
 	fmt.Printf("[%s] Starting HTTP server...\n", time.Now().Format("15:04:05.000"))
-	log.Fatal(http.ListenAndServe(":"+appConfig.Port, nil))
+	log.Fatal(http.ListenAndServe("127.0.0.1:"+appConfig.Port, nil))
 }
 
 func setupRoutes() {

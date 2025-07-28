@@ -229,6 +229,51 @@ func parseProgressFromOutput(line string) *ProgressUpdate {
 		}
 	}
 
+	// Add detection for microservice deployment failures
+	if strings.Contains(cleanLine, "Error: Could not find microservice for") {
+		// Extract service name from error message
+		parts := strings.Fields(cleanLine)
+		for i, part := range parts {
+			if part == "for" && i+1 < len(parts) {
+				serviceName := parts[i+1]
+				// Remove "in" and everything after it
+				if strings.Contains(serviceName, " ") {
+					serviceName = strings.Split(serviceName, " ")[0]
+				}
+				return &ProgressUpdate{
+					Type:    "progress",
+					Stage:   "patch",
+					Service: serviceName,
+					Status:  "error",
+					Message: fmt.Sprintf("Deployment failed for %s", serviceName),
+					Details: "Microservice not found in cluster",
+				}
+			}
+		}
+	}
+
+	// Add detection for deployment failures in summary
+	if strings.Contains(cleanLine, "Deploy: FAILED") {
+		return &ProgressUpdate{
+			Type:    "progress",
+			Stage:   "patch",
+			Status:  "error",
+			Message: "Kubernetes Deployment",
+			Details: "One or more deployments failed",
+		}
+	}
+
+	// Detect partial success in summary
+	if strings.Contains(cleanLine, "PARTIAL:") && strings.Contains(cleanLine, "microservices processed successfully") {
+		return &ProgressUpdate{
+			Type:    "progress",
+			Stage:   "patch",
+			Status:  "error",
+			Message: "Kubernetes Deployment",
+			Details: "Partial deployment - some services failed",
+		}
+	}
+
 	return nil
 }
 
