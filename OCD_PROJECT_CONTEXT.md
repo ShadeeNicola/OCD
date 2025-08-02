@@ -195,6 +195,15 @@ export const STAGE_LABELS = {
 - **Save Functionality**: Download deployment logs
 - **Responsive Design**: Modern CSS with animations
 
+### UI Layout Reference
+**Note**: For UI modifications, refer to screenshot: `OCD_UI_SCREENSHOT.png`
+- **Main Interface**: Clean, modern web interface with dark/light theme toggle
+- **Folder Input**: Text input with browse button and history dropdown
+- **Deploy Button**: Primary action button (disabled until valid path selected)
+- **Progress Section**: Real-time progress bar and stage-based progress overview
+- **Output Window**: Collapsible terminal-style output with save functionality
+- **Status Messages**: Temporary notifications for user feedback
+
 ## Deployment Script (OCD.sh)
 
 ### Overview
