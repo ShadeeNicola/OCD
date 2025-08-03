@@ -36,3 +36,6 @@ temp/
 # Allow our distribution binaries
 !OCD.exe
 !OCD-Tool-Linux
+
+# Allow executables folder
+executables/

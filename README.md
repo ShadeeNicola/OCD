@@ -5,7 +5,7 @@ A GUI-based deployment tool that simplifies the deployment process with real-tim
 ## Quick Start - Download & Run
 
 ### For Windows Users
-1. Download `OCD.exe`
+1. Download `executables/OCD.exe`
 2. Double-click to run
 3. Your browser will open automatically
 4. **Requirements**: WSL (Windows Subsystem for Linux) must be installed
@@ -14,36 +14,36 @@ A GUI-based deployment tool that simplifies the deployment process with real-tim
 Choose the appropriate version for your system:
 
 #### Linux x64 (Intel/AMD 64-bit) - Most Common
-1. Download `OCD-Tool-Linux-x64`
-2. Make it executable: `chmod +x OCD-Tool-Linux-x64`
-3. Run the tool: `./OCD-Tool-Linux-x64`
+1. Download `executables/OCD-Tool-Linux-x64`
+2. Make it executable: `chmod +x executables/OCD-Tool-Linux-x64`
+3. Run the tool: `./executables/OCD-Tool-Linux-x64`
 
 #### Linux x86 (32-bit)
-1. Download `OCD-Tool-Linux-x86`
-2. Make it executable: `chmod +x OCD-Tool-Linux-x86`
-3. Run the tool: `./OCD-Tool-Linux-x86`
+1. Download `executables/OCD-Tool-Linux-x86`
+2. Make it executable: `chmod +x executables/OCD-Tool-Linux-x86`
+3. Run the tool: `./executables/OCD-Tool-Linux-x86`
 
 #### Linux ARM64 (64-bit ARM)
-1. Download `OCD-Tool-Linux-ARM64`
-2. Make it executable: `chmod +x OCD-Tool-Linux-ARM64`
-3. Run the tool: `./OCD-Tool-Linux-ARM64`
+1. Download `executables/OCD-Tool-Linux-ARM64`
+2. Make it executable: `chmod +x executables/OCD-Tool-Linux-ARM64`
+3. Run the tool: `./executables/OCD-Tool-Linux-ARM64`
 
 #### Linux ARM (32-bit ARM)
-1. Download `OCD-Tool-Linux-ARM`
-2. Make it executable: `chmod +x OCD-Tool-Linux-ARM`
-3. Run the tool: `./OCD-Tool-Linux-ARM`
+1. Download `executables/OCD-Tool-Linux-ARM`
+2. Make it executable: `chmod +x executables/OCD-Tool-Linux-ARM`
+3. Run the tool: `./executables/OCD-Tool-Linux-ARM`
 
 ### For macOS Users
 
 #### macOS Intel (x64)
-1. Download `OCD-Tool-macOS-Intel`
-2. Make it executable: `chmod +x OCD-Tool-macOS-Intel`
-3. Run the tool: `./OCD-Tool-macOS-Intel`
+1. Download `executables/OCD-Tool-macOS-Intel`
+2. Make it executable: `chmod +x executables/OCD-Tool-macOS-Intel`
+3. Run the tool: `./executables/OCD-Tool-macOS-Intel`
 
 #### macOS Apple Silicon (M1/M2)
-1. Download `OCD-Tool-macOS-AppleSilicon`
-2. Make it executable: `chmod +x OCD-Tool-macOS-AppleSilicon`
-3. Run the tool: `./OCD-Tool-macOS-AppleSilicon`
+1. Download `executables/OCD-Tool-macOS-AppleSilicon`
+2. Make it executable: `chmod +x executables/OCD-Tool-macOS-AppleSilicon`
+3. Run the tool: `./executables/OCD-Tool-macOS-AppleSilicon`
 
 **Note**: Your browser will open automatically on all platforms.
 
@@ -72,7 +72,7 @@ Choose the appropriate version for your system:
    cd OCD
 
 2. Build the application:
-   go build -ldflags="-s -w" -o OCD.exe .
+   go build -ldflags="-s -w" -o executables/OCD.exe .
 
 ## Usage
 
@@ -92,10 +92,10 @@ chmod +x build-all-executables.sh
 
 Or build manually for specific platforms:
 # Windows
-go build -ldflags="-s -w" -o OCD.exe .
+go build -ldflags="-s -w" -o executables/OCD.exe .
 
 # Linux x64
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o OCD-Tool-Linux-x64 .
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o executables/OCD-Tool-Linux-x64 .
 
 # macOS Apple Silicon
 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o OCD-Tool-macOS-AppleSilicon .
