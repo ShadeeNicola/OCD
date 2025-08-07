@@ -16,39 +16,55 @@ OCD (One Click Deployer) is a GUI-based deployment tool that simplifies the depl
 ### Project Structure
 ```
 OCD/
-├── ocd-gui/                    # Main application directory
-│   ├── main.go                # Application entry point
-│   ├── handlers.go            # HTTP request handlers
-│   ├── websocket.go           # WebSocket communication
-│   ├── ocd_runner.go          # Core deployment logic
-│   ├── command_executor.go    # Command execution and streaming
-│   ├── config.go              # Configuration management
-│   ├── types.go               # Data structures and types
-│   ├── file_dialog.go         # File dialog handling
-│   ├── logger.go              # Logging functionality
-│   ├── security.go            # Security utilities
-│   ├── progress_parser.go     # Progress parsing from output
-│   ├── assets.go              # Embedded web assets
-│   ├── OCD.sh                 # Main deployment shell script
-│   ├── go.mod                 # Go dependencies
-│   ├── go.sum                 # Go dependency checksums
-│   └── web/                   # Frontend assets
-│       ├── index.html         # Main HTML interface
-│       ├── styles.css         # Styling
-│       └── js/                # JavaScript modules
-│           ├── main.js        # Main application logic
-│           ├── constants.js   # Application constants
-│           ├── utils.js       # Utility functions
-│           ├── history-manager.js    # Folder history management
-│           └── progress-manager.js   # Progress tracking
-└── README.md                  # Project documentation
+├── ocd-gui/                        # Main application directory
+│   ├── cmd/ocd-gui/               # Go entrypoint (main package)
+│   │   └── main.go
+│   ├── internal/                  # Non-exported application packages
+│   │   ├── http/                  # HTTP and WebSocket layer
+│   │   │   ├── handlers.go
+│   │   │   └── ws.go
+│   │   ├── executor/              # Script execution and orchestration
+│   │   │   ├── command_executor.go
+│   │   │   └── runner.go
+│   │   ├── config/                # Configuration loading
+│   │   │   └── config.go
+│   │   ├── logging/               # Logger wrapper
+│   │   │   └── logger.go
+│   │   ├── security/              # Validation and path utilities
+│   │   │   └── security.go
+│   │   ├── progress/              # Progress parsing and DTOs
+│   │   │   ├── parser.go
+│   │   │   └── types.go
+│   │   └── ui/                    # UI embedding and dialogs
+│   │       ├── assets.go
+│   │       └── dialog.go
+│   ├── scripts/                   # Deployment scripts
+│   │   ├── OCD.sh
+│   │   ├── OCD-customization.sh
+│   │   ├── build-all-executables.sh
+│   │   └── shared/
+│   │       ├── utils.sh
+│   │       └── maven.sh
+│   ├── web/                       # Frontend assets
+│   │   ├── index.html
+│   │   ├── styles.css
+│   │   └── js/
+│   │       ├── main.js
+│   │       ├── constants.js
+│   │       ├── utils.js
+│   │       ├── history-manager.js
+│   │       └── progress-manager.js
+│   ├── go.mod                     # Go module
+│   └── go.sum
+├── README.md                      # Project documentation
+└── OCD_PROJECT_CONTEXT.md         # This context document
 ```
 
 ## Backend Architecture (Go)
 
 ### Core Components
 
-#### 1. Main Application (`main.go`)
+#### 1. Main Application (`cmd/ocd-gui/main.go`)
 - **Purpose**: Application entry point and server initialization
 - **Key Features**:
   - Embedded web filesystem loading
@@ -57,14 +73,14 @@ OCD/
   - Cross-platform path handling
   - Route configuration
 
-#### 2. HTTP Handlers (`handlers.go`)
+#### 2. HTTP Handlers (`internal/http/`)
 - **Endpoints**:
   - `GET /api/browse` - File dialog for folder selection
   - `POST /api/deploy` - Traditional deployment endpoint
   - `GET /api/health` - Health check endpoint
   - `GET /ws/deploy` - WebSocket deployment endpoint
 
-#### 3. WebSocket Communication (`websocket.go`)
+#### 3. WebSocket Communication (`internal/http/ws.go`)
 - **Purpose**: Real-time communication for deployment progress
 - **Features**:
   - Origin validation for security
@@ -72,7 +88,7 @@ OCD/
   - Connection management
   - Error handling
 
-#### 4. Deployment Runner (`ocd_runner.go`)
+#### 4. Deployment Runner (`internal/executor/runner.go`)
 - **Purpose**: Core deployment orchestration
 - **Key Functions**:
   - Cross-platform command building (Windows/WSL, Linux, macOS)
@@ -81,7 +97,7 @@ OCD/
   - Progress parsing and WebSocket communication
   - Path conversion for WSL
 
-#### 5. Command Executor (`command_executor.go`)
+#### 5. Command Executor (`internal/executor/command_executor.go`)
 - **Purpose**: Secure command execution and streaming
 - **Features**:
   - Path validation and sanitization
@@ -89,7 +105,7 @@ OCD/
   - Real-time stdout/stderr streaming
   - Error handling and logging
 
-#### 6. Configuration (`config.go`)
+#### 6. Configuration (`internal/config/config.go`)
 - **Configuration Options**:
   - `OCD_PORT` - Server port (default: 2111)
   - `OCD_WSL_USER` - WSL username (default: k8s)
@@ -97,7 +113,7 @@ OCD/
   - `OCD_ALLOWED_ORIGINS` - CORS origins (default: localhost,127.0.0.1)
   - `OCD_COMMAND_TIMEOUT` - Command timeout in seconds (default: 1800)
 
-### Data Structures (`types.go`)
+### Data Structures (`internal/progress/types.go`)
 
 ```go
 type Response struct {
@@ -204,15 +220,41 @@ export const STAGE_LABELS = {
 - **Output Window**: Collapsible terminal-style output with save functionality
 - **Status Messages**: Temporary notifications for user feedback
 
-## Deployment Script (OCD.sh)
+## Deployment Scripts
 
 ### Overview
-The `OCD.sh` script is the core deployment engine that:
+The OCD tool now supports multiple project types with dedicated deployment scripts:
+
+#### 1. ATT Projects (`OCD.sh`)
+The original deployment script for ATT projects that:
 1. Detects changed microservices using Git
 2. Updates Maven settings
 3. Builds changed services with Maven
 4. Creates Docker images
 5. Deploys to Kubernetes
+
+#### 2. Customization Projects (`OCD-customization.sh`)
+A specialized deployment script for customization projects that:
+1. Detects changed services in `app/backend/` directories
+2. Builds changed services with Maven
+3. Always builds `app/metadata`
+4. Always builds `dockers/customization-jars`
+5. Deploys using project-specific patch commands (TBD)
+
+### Shared Functions (`scripts/shared/`)
+Both scripts use shared utility functions to eliminate code duplication:
+
+#### `shared/utils.sh`
+- Environment detection (WSL/Windows/Linux)
+- Colored output and logging
+- Git utilities (changed file detection)
+- Prerequisites checking
+- Connection validation
+
+#### `shared/maven.sh`
+- Maven settings management
+- Cross-platform Maven build functions
+- Path conversion utilities
 
 ### Key Features
 - **Smart Change Detection**: Uses Git status to identify modified services
@@ -231,6 +273,7 @@ The `OCD.sh` script is the core deployment engine that:
 5. **Patch**: Kubernetes deployment and rollout
 
 ### Command Line Options
+Both scripts support the same command-line interface:
 - `-n, --namespace` - Kubernetes namespace (default: dop)
 - `--skip-build` - Skip build phase
 - `--skip-deploy` - Skip deploy phase
@@ -238,6 +281,22 @@ The `OCD.sh` script is the core deployment engine that:
 - `--confirm` - Prompt for confirmation
 - `-v, --verbose` - Show detailed output
 - `-h, --help` - Show help
+
+## Multi-Project Support
+
+### Project Type Detection
+The OCD tool automatically detects project type based on the repository path:
+- **ATT Projects**: Standard microservice projects (default)
+- **Customization Projects**: Projects containing "customization" in the path
+
+### Script Selection
+- **ATT Projects**: Uses `OCD.sh` with microservice detection and deployment
+- **Customization Projects**: Uses `OCD-customization.sh` with service-specific build/deploy flow
+
+### Backward Compatibility
+- Existing ATT projects continue to work exactly as before
+- No changes required for current deployments
+- New customization projects use the dedicated script
 
 ## Cross-Platform Support
 
@@ -293,29 +352,31 @@ require github.com/gorilla/websocket v1.5.3
 ### Single Platform
 ```bash
 # Windows
-go build -ldflags="-s -w" -o OCD.exe .
+go build -ldflags="-s -w" -o dist/OCD.exe ./cmd/ocd-gui
 
 # Linux x64
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o OCD-Tool-Linux-x64 .
+GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui
 
 # macOS Apple Silicon
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o OCD-Tool-macOS-AppleSilicon .
+GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui
 ```
 
 ### All Platforms
 ```bash
-chmod +x build-all-executables.sh
-./build-all-executables.sh
+chmod +x scripts/build-all-executables.sh
+DIST_DIR=dist ./scripts/build-all-executables.sh
 ```
 
 ## Usage Workflow
 
 1. **Launch Application**: Run the platform-specific executable
 2. **Select Repository**: Use browse button or type path to Git repository
-3. **Validation**: System validates Git repository and detects changes
-4. **Deployment**: Click "Deploy Changes" to start deployment
-5. **Monitoring**: Real-time progress tracking via WebSocket
-6. **Completion**: View results and optionally save logs
+3. **Project Detection**: System automatically detects project type (ATT vs Customization)
+4. **Script Selection**: Appropriate deployment script is automatically chosen
+5. **Validation**: System validates Git repository and detects changes
+6. **Deployment**: Click "Deploy Changes" to start deployment
+7. **Monitoring**: Real-time progress tracking via WebSocket
+8. **Completion**: View results and optionally save logs
 
 ## Error Handling
 
@@ -366,12 +427,15 @@ chmod +x build-all-executables.sh
 - **Advanced Monitoring**: Integration with monitoring tools
 - **Configuration UI**: Web-based configuration management
 - **Deployment Templates**: Predefined deployment patterns
+- **Additional Project Types**: Support for more project structures
+- **Customization Deployment**: Complete implementation of customization patch commands
 
 ### Technical Debt
 - **Code Documentation**: Additional inline documentation
 - **Test Coverage**: Unit and integration tests
 - **Error Handling**: More specific error types
 - **Performance**: Additional optimization opportunities
+- **Shared Function Testing**: Comprehensive testing of shared utilities
 
 ## Troubleshooting Guide
 
@@ -390,5 +454,18 @@ chmod +x build-all-executables.sh
 - Verify Kubernetes cluster accessibility
 - Review detailed logs in output window
 - Ensure Git repository is properly configured
+
+## Related Context Files
+
+### Project-Specific Contexts
+- **`_att_context.md`**: Documents the ATT project structure and current OCD tool support
+- **`_customization_context.md`**: Documents the customization project structure and planned OCD tool integration
+
+### Usage
+- For ATT project deployments, refer to `_att_context.md`
+- For customization project development, refer to `_customization_context.md`
+- For general OCD tool architecture, refer to this main context file
+
+---
 
 This context file provides a comprehensive overview of the OCD project, enabling any AI to understand the complete architecture, functionality, and implementation details without needing to explore the codebase further. 

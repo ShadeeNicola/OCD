@@ -41,7 +41,7 @@ export class ProgressManager {
             item = document.createElement('div');
             item.className = 'progress-item';
             item.innerHTML = `
-                <div class="progress-status status-${status}"></div>
+                <div class="new-progress-status status-${status}"></div>
                 <div class="progress-label">${label}</div>
                 <div class="progress-details">${details}</div>
             `;
@@ -56,11 +56,11 @@ export class ProgressManager {
         const item = this.currentProgressItems.get(id);
         if (!item) return;
 
-        const statusDiv = item.querySelector('.progress-status');
+        const statusDiv = item.querySelector('.new-progress-status') || item.querySelector('.progress-status');
         const labelDiv = item.querySelector('.progress-label');
         const detailsDiv = item.querySelector('.progress-details');
 
-        statusDiv.className = `progress-status status-${status}`;
+        statusDiv.className = `new-progress-status status-${status}`;
         labelDiv.textContent = label;
         detailsDiv.textContent = details;
     }

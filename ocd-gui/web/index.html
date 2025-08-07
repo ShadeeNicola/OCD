@@ -3,71 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCD - One Click Deployer</title>
+    <title>OCD - One Click Deployer v2.0.0</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-<button class="theme-toggle" onclick="toggleTheme()">🌙 Dark</button>
-<div class="container">
-    <h1>OCD - One Click Deployer</h1>
-    <p>Welcome to your deployment tool!</p>
+    <!-- Animated Background -->
+    <div class="animated-background">
+        <div class="particles"></div>
+        <div class="gradient-overlay"></div>
+    </div>
 
-    <div class="form-group">
-        <label for="folder-path">Project Folder:</label>
-        <form autocomplete="on">
-            <div class="folder-input">
-                <div class="input-container">
-                    <input type="text" id="folder-path" name="folder-path" placeholder="Select your git repository folder..." autocomplete="on">
-                    <div id="history-dropdown" class="history-dropdown"></div>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                    <span>OCD</span>
                 </div>
-                <button type="button" id="browse-btn">Browse</button>
-            </div>
-        </form>
-        <div id="manual-input-note" class="manual-input-note" style="display: none;">
-            You can also manually type or paste the folder path above.
-        </div>
-    </div>
-
-    <button id="deploy-btn" disabled>Deploy Changes</button>
-
-    <div id="status-message" class="status-message" style="display: none;"></div>
-
-    <!-- Progress Bar Section -->
-    <div id="progress-bar-section" class="progress-bar-section" style="display: none;">
-        <div class="progress-bar-container">
-            <div class="progress-bar-header">
-                <span id="progress-text">Initializing deployment...</span>
-                <span id="progress-percentage">0%</span>
-            </div>
-            <div class="progress-bar-track">
-                <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                <nav class="nav">
+                    <a href="#deploy" class="nav-link">Deploy</a>
+                    <a href="#progress" class="nav-link">Progress</a>
+                    <a href="#output" class="nav-link">Output</a>
+                </nav>
             </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Deployment Progress Section -->
-    <div id="deployment-section" class="deployment-section" style="display: none;">
-        <div class="deployment-header">
-            <h3>Deployment Progress</h3>
-            <div class="deployment-controls">
-                <button id="toggle-output-btn" class="toggle-btn">Show Output</button>
-                <button id="save-output-btn" class="save-btn" disabled>Save Output</button>
-            </div>
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Hero Section -->
+            <section class="hero">
+                <div class="hero-content">
+                    <h1 class="hero-title">One Click Deployer</h1>
+                    <p class="hero-subtitle">Streamline your microservice deployment with intelligent change detection and real-time progress tracking.</p>
+                </div>
+            </section>
+
+            <!-- Deployment Card -->
+            <section class="deployment-card" id="deploy">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Project Selection</h2>
+                        <p>Select your Git repository to begin deployment</p>
+                    </div>
+                    <div class="card-content">
+                        <div class="form-group">
+                            <label for="folder-path">Project Folder:</label>
+                            <div class="folder-input">
+                                <div class="input-container">
+                                    <input type="text" id="folder-path" name="folder-path" placeholder="Select your git repository folder..." autocomplete="on">
+                                    <div id="history-dropdown" class="history-dropdown"></div>
+                                </div>
+                                <button type="button" id="browse-btn" class="btn-secondary">Browse</button>
+                            </div>
+                            <div id="manual-input-note" class="manual-input-note" style="display: none;">
+                                You can also manually type or paste the folder path above.
+                            </div>
+                        </div>
+
+                        <button id="deploy-btn" class="btn-primary" disabled>Deploy Changes</button>
+
+                        <div id="status-message" class="status-message" style="display: none;"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Progress Section -->
+            <section class="progress-section" id="progress">
+                <!-- Progress Bar -->
+                <div id="progress-bar-section" class="progress-card" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Deployment Progress</h3>
+                            <div class="progress-info">
+                                <span id="progress-text">Initializing deployment...</span>
+                                <span id="progress-percentage">0%</span>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="progress-bar-track">
+                                <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Overview -->
+                <div id="deployment-section" class="progress-overview-card" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Stage Progress</h3>
+                            <div class="deployment-controls">
+                                <button id="toggle-output-btn" class="btn-secondary">Show Output</button>
+                                <button id="save-output-btn" class="btn-secondary" disabled>Save Output</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div id="progress-overview" class="progress-overview"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Output Section -->
+            <section class="output-section" id="output">
+                <div id="output-window" class="output-card" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Script Output</h3>
+                        </div>
+                        <div class="card-content">
+                            <div id="output-content" class="output-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
+    </main>
 
-        <!-- Progress Overview -->
-        <div id="progress-overview" class="progress-overview"></div>
+    <!-- Developer Credit -->
+    <footer class="developer-credit">
+        <span>Developed by Shadee Nicola</span>
+        <span>•</span>
+        <span>v2.0.0</span>
+        <button class="mail-btn" onclick="sendMail()" title="Contact Developer">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+            </svg>
+        </button>
+    </footer>
 
-        <!-- Output Window -->
-        <div id="output-window" class="output-window" style="display: none;">
-            <div class="output-header">
-                <span>Script Output</span>
-            </div>
-            <div id="output-content" class="output-content"></div>
-        </div>
-    </div>
-</div>
-
-<script type="module" src="js/main.js"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>

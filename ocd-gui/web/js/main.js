@@ -61,6 +61,9 @@ class OCDApp {
         this.toggleOutputBtn.addEventListener('click', () => this.toggleOutput());
         this.saveOutputBtn.addEventListener('click', () => this.saveOutput());
 
+        // Navigation events
+        this.setupNavigation();
+
         // Document events
         document.addEventListener('click', (e) => this.handleDocumentClick(e));
 
@@ -70,6 +73,23 @@ class OCDApp {
         // Add cleanup on page unload
         window.addEventListener('beforeunload', () => this.cleanup());
         window.addEventListener('unload', () => this.cleanup());
+    }
+
+    setupNavigation() {
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = link.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
     }
 
     handleFolderInputClick(e) {
@@ -122,7 +142,6 @@ class OCDApp {
                 this.validateFolderPath();
                 this.historyManager.addToHistory(data.folderPath);
                 this.historyManager.hideHistoryDropdown();
-                // Removed "Folder selected successfully" message
             } else {
                 this.handleBrowseError(data);
             }
@@ -163,7 +182,7 @@ class OCDApp {
         // Clear previous output and reset progress
         this.clearOutput();
         this.progressManager.reset();
-        this.progressManager.initialize(); // Add this line
+        this.progressManager.initialize();
 
         this.deployBtn.disabled = true;
         this.deployBtn.textContent = 'Deploying...';
@@ -191,21 +210,21 @@ class OCDApp {
     handleWebSocketMessage(event) {
         try {
             const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data); // Debug log
+            console.log('Received WebSocket message:', data);
 
             switch (data.type) {
                 case 'output':
-                    console.log('Processing output:', data.content); // Debug log
+                    console.log('Processing output:', data.content);
                     this.appendOutput(data.content);
                     break;
 
                 case 'progress':
-                    console.log('Processing progress:', data); // Debug log
+                    console.log('Processing progress:', data);
                     this.progressManager.handleProgressUpdate(data);
                     break;
 
                 case 'complete':
-                    console.log('Processing completion:', data); // Debug log
+                    console.log('Processing completion:', data);
                     this.handleDeploymentComplete(data);
                     break;
 
@@ -232,7 +251,7 @@ class OCDApp {
         if (this.deployBtn.textContent === 'Deploying...') {
             this.resetDeployButton();
             this.showStatus('Connection lost during deployment', 'error');
-            this.cleanup(); // Only cleanup on error
+            this.cleanup();
         }
         // Just close the websocket connection, don't reset progress
         this.websocket = null;
@@ -266,7 +285,7 @@ class OCDApp {
         const coloredContent = ansiToHtml(content);
         const line = document.createElement('div');
         line.className = `output-line ${type}`;
-        line.innerHTML = coloredContent; // Use innerHTML instead of textContent
+        line.innerHTML = coloredContent;
         this.outputContent.appendChild(line);
         this.outputContent.scrollTop = this.outputContent.scrollHeight;
 
@@ -304,34 +323,6 @@ class OCDApp {
 
     initialize() {
         this.validateFolderPath();
-        this.addDeveloperCredit();
-        this.initializeTheme();
-    }
-
-    initializeTheme() {
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-
-        const themeToggle = document.querySelector('.theme-toggle');
-        if (themeToggle) {
-            themeToggle.textContent = savedTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
-        }
-    }
-
-    addDeveloperCredit() {
-        const footer = document.createElement('div');
-        footer.className = 'developer-credit';
-        footer.innerHTML = `
-        <span>Developed by Shadee Nicola</span>
-        <span>•</span>
-        <span>V1.0</span>
-        <button class="mail-btn" onclick="sendMail()" title="Contact Developer">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-            </svg>
-        </button>
-    `;
-        document.body.appendChild(footer);
     }
 
     cleanup() {
@@ -343,20 +334,8 @@ class OCDApp {
 }
 
 // Global functions for HTML onclick handlers
-window.toggleTheme = function() {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-
-    const themeToggle = document.querySelector('.theme-toggle');
-    themeToggle.textContent = newTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
-};
-
 window.sendMail = function() {
     const subject = encodeURIComponent('OCD Tool - Contact');
-    const body = encodeURIComponent('Hello Shadee,\n\nI am contacting you regarding the OCD (One Click Deployer) tool.\n\n');
     window.open(`mailto:shadee.nicola@amdocs.com?subject=${subject}&body=${body}`);
 };
 
