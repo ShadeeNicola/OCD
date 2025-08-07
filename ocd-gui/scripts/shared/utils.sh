@@ -237,4 +237,148 @@ confirm_deployment() {
         write_colored_output "Deployment cancelled by user." "yellow"
         exit 0
     fi
-} 
+}
+
+# =============================================================================
+# DOCKER SETTINGS UTILITIES
+# =============================================================================
+
+get_corporate_ip() {
+    if ! command -v ifconfig &> /dev/null; then
+        write_colored_output "Error: ifconfig command not found" "red" >&2
+        return 1
+    fi
+
+    # Try eth0 first
+    local corp_ip=$(ifconfig eth0 2>/dev/null | grep 'inet ' | awk '{print $2}' | head -1)
+
+    if [[ -n "$corp_ip" && "$corp_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$corp_ip"
+        return 0
+    fi
+
+    # If eth0 not found or no valid IP, try eth1
+    corp_ip=$(ifconfig eth1 2>/dev/null | grep 'inet ' | awk '{print $2}' | head -1)
+
+    if [[ -n "$corp_ip" && "$corp_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$corp_ip"
+        return 0
+    fi
+
+    write_colored_output "Error: Could not find corporate IP address from eth0 or eth1" "red" >&2
+    return 1
+}
+
+generate_docker_tag() {
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local docker_tag="${WINDOWS_USER}-${timestamp}"
+    echo "$docker_tag"
+    return 0
+}
+
+update_docker_host_in_settings() {
+    local new_ip="$1"
+
+    local settings_file_path=""
+    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
+        settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    else
+        settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    fi
+
+    if [[ ! -f "$settings_file_path" ]]; then
+        write_colored_output "Error: Maven settings.xml not found at $settings_file_path" "red"
+        return 1
+    fi
+
+    # Create backup
+    cp "$settings_file_path" "$settings_file_path.backup.$(date +%Y%m%d_%H%M%S)"
+
+    # Validate IP format
+    if [[ ! "$new_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        write_colored_output "Error: Invalid IP format: $new_ip" "red"
+        return 1
+    fi
+
+    # Update docker.host using sed
+    local sed_pattern="s/<docker\.host>tcp:\/\/[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}\.[0-9]\{1,3\}:2375<\/docker\.host>/<docker.host>tcp:\/\/$new_ip:2375<\/docker.host>/g"
+
+    if sed -i "$sed_pattern" "$settings_file_path"; then
+        if grep -q "tcp://$new_ip:2375" "$settings_file_path"; then
+            return 0
+        else
+            write_colored_output "Error: Failed to update docker.host value" "red"
+            return 1
+        fi
+    else
+        write_colored_output "Error: Sed command failed" "red"
+        return 1
+    fi
+}
+
+update_docker_tag_in_settings() {
+    local new_tag="$1"
+
+    local settings_file_path=""
+    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
+        settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    else
+        settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    fi
+
+    if [[ ! -f "$settings_file_path" ]]; then
+        write_colored_output "Error: Maven settings.xml not found at $settings_file_path" "red"
+        return 1
+    fi
+
+    # Validate tag format
+    if [[ ! "$new_tag" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+        write_colored_output "Error: Invalid tag format: $new_tag" "red"
+        return 1
+    fi
+
+    # Update docker.tag3 using sed
+    local sed_pattern="s/<docker\.tag3>[^<]*<\/docker\.tag3>/<docker.tag3>$new_tag<\/docker.tag3>/g"
+
+    if sed -i "$sed_pattern" "$settings_file_path"; then
+        if grep -q "<docker.tag3>$new_tag</docker.tag3>" "$settings_file_path"; then
+            return 0
+        else
+            write_colored_output "Error: Failed to update docker.tag3 value" "red"
+            return 1
+        fi
+    else
+        write_colored_output "Error: Sed command failed" "red"
+        return 1
+    fi
+}
+
+auto_update_docker_settings() {
+    # Update Docker host IP
+    local corp_ip=$(get_corporate_ip)
+    if [[ $? -eq 0 && -n "$corp_ip" ]]; then
+        if ! update_docker_host_in_settings "$corp_ip"; then
+            write_colored_output "Error: Failed to update Docker host IP in settings.xml" "red"
+            exit 1
+        fi
+    else
+        write_colored_output "Error: Could not detect corporate IP address" "red"
+        exit 1
+    fi
+
+    # Update Docker tag
+    local docker_tag=$(generate_docker_tag)
+    if [[ $? -eq 0 && -n "$docker_tag" ]]; then
+        if ! update_docker_tag_in_settings "$docker_tag"; then
+            write_colored_output "Error: Failed to update Docker tag in settings.xml" "red"
+            exit 1
+        fi
+    else
+        write_colored_output "Error: Could not generate Docker tag" "red"
+        exit 1
+    fi
+
+    write_colored_output "Maven Settings XML Updated (IP: $corp_ip, Tag: $docker_tag)" "green"
+}
+
+
