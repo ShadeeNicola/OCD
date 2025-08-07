@@ -533,6 +533,26 @@ input[type="text"]::placeholder {
     font-size: 0.9rem;
 }
 
+/* Compact spacing specifically for the progress card */
+.progress-card .card-header {
+    padding: 0.5rem 1rem 0.5rem;
+    border-bottom: none;
+}
+
+.progress-card .progress-info {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.progress-card .card-content {
+    padding: 0.5rem 1rem 0.75rem;
+}
+
+/* Inline progress under Stage Progress header */
+.inline-progress {
+    margin-bottom: 0.75rem;
+}
+
 .progress-bar-track {
     width: 100%;
     height: 6px;
@@ -804,6 +824,18 @@ input[type="text"]::placeholder {
     display: flex;
     gap: 0.75rem;
     align-items: center;
+}
+
+/* Align Stage Progress actions to the right within header */
+.progress-overview-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.progress-overview-card .card-header h3 {
+    margin: 0;
 }
 
 .manual-input-note {
