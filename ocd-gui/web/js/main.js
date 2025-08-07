@@ -57,7 +57,7 @@ class OCDApp {
 
         // Button events
         this.browseBtn.addEventListener('click', () => this.handleBrowseClick());
-        this.deployBtn.addEventListener('click', () => this.handleDeployClick());
+        this.deployBtn.addEventListener('click', () => this.handleDeployButton());
         this.toggleOutputBtn.addEventListener('click', () => this.toggleOutput());
         this.saveOutputBtn.addEventListener('click', () => this.saveOutput());
 
@@ -165,7 +165,13 @@ class OCDApp {
         }
     }
 
-    handleDeployClick() {
+    handleDeployButton() {
+        // If deploying, clicking acts as cancel
+        if (this.deployBtn.dataset.state === 'deploying') {
+            this.handleCancelClick();
+            return;
+        }
+
         if (!this.folderInput.value.trim()) {
             this.showStatus('Please select a project folder first', 'error');
             return;
@@ -184,8 +190,7 @@ class OCDApp {
         this.progressManager.reset();
         this.progressManager.initialize();
 
-        this.deployBtn.disabled = true;
-        this.deployBtn.textContent = 'Deploying...';
+        this.setDeployingState(true);
 
         const folderPath = this.folderInput.value.trim();
 
@@ -205,6 +210,16 @@ class OCDApp {
         this.websocket.onmessage = (event) => this.handleWebSocketMessage(event);
         this.websocket.onclose = () => this.handleWebSocketClose();
         this.websocket.onerror = (error) => this.handleWebSocketError(error);
+    }
+
+    handleCancelClick() {
+        try {
+            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                this.websocket.send(JSON.stringify({ type: 'cancel' }));
+            }
+        } catch (_) {}
+        // UI reflects stopping state; actual completion comes from server 'complete'
+        this.showStatus('Aborting deployment...', 'warning');
     }
 
     handleWebSocketMessage(event) {
@@ -276,9 +291,21 @@ class OCDApp {
     }
 
     resetDeployButton() {
-        this.deployBtn.disabled = false;
-        this.deployBtn.textContent = 'Deploy Changes';
+        this.setDeployingState(false);
         this.websocket = null;
+    }
+
+    setDeployingState(isDeploying) {
+        if (isDeploying) {
+            this.deployBtn.dataset.state = 'deploying';
+            this.deployBtn.classList.add('danger');
+            this.deployBtn.textContent = 'Deploying...Click to Abort!';
+        } else {
+            this.deployBtn.dataset.state = '';
+            this.deployBtn.classList.remove('danger');
+            this.deployBtn.textContent = 'Deploy Changes';
+            this.deployBtn.disabled = false;
+        }
     }
 
     appendOutput(content, type = 'normal') {

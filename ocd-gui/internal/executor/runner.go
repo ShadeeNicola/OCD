@@ -2,6 +2,7 @@ package executor
 
 import (
     "bufio"
+    "context"
     "fmt"
     "io/ioutil"
     "os"
@@ -20,7 +21,7 @@ var commandExecutor *CommandExecutor
 
 func InitExecutor(ce *CommandExecutor) { commandExecutor = ce }
 
-func RunOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn, writeJSON func(*websocket.Conn, interface{}) error) {
+func RunOCDScriptWithWebSocket(ctx context.Context, folderPath string, conn *websocket.Conn, writeJSON func(*websocket.Conn, interface{}) error) {
     tempScriptPath, err := createTempOCDScript(folderPath)
     if err != nil { writeJSON(conn, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error creating temporary script: %s", err.Error()), Success: false}); return }
     defer os.Remove(tempScriptPath)
@@ -61,6 +62,7 @@ func RunOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn, writeJSO
     go func() {
         scanner := bufio.NewScanner(stdout)
         for scanner.Scan() {
+            select { case <-ctx.Done(): return; default: }
             line := scanner.Text()
             if strings.Contains(line, "screen size is bogus") { continue }
             writeJSON(conn, progress.OutputMessage{Type: "output", Content: line})
@@ -71,17 +73,26 @@ func RunOCDScriptWithWebSocket(folderPath string, conn *websocket.Conn, writeJSO
     go func() {
         scanner := bufio.NewScanner(stderr)
         for scanner.Scan() {
+            select { case <-ctx.Done(): return; default: }
             line := scanner.Text()
             if strings.Contains(line, "screen size is bogus") { continue }
             writeJSON(conn, progress.OutputMessage{Type: "output", Content: line})
         }
     }()
 
-    err = cmd.Wait()
-    success := err == nil
-    msg := "Check logs for more details"
-    if success { msg = "Deployment completed successfully" }
-    writeJSON(conn, progress.OutputMessage{Type: "complete", Content: msg, Success: success})
+    done := make(chan error, 1)
+    go func() { done <- cmd.Wait() }()
+
+    select {
+    case <-ctx.Done():
+        _ = cmd.Process.Kill()
+        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: "Deployment aborted by user", Success: false})
+    case err := <-done:
+        success := err == nil
+        msg := "Check logs for more details"
+        if success { msg = "Deployment completed successfully" }
+        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: msg, Success: success})
+    }
 }
 
 func RunOCDScript(folderPath string) progress.Response { return commandExecutor.Execute(folderPath) }

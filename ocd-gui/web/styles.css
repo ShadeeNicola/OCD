@@ -338,6 +338,15 @@ input[type="text"]::placeholder {
     overflow: hidden;
 }
 
+/* Danger state for primary button during deployment */
+.btn-primary.danger {
+    background: linear-gradient(135deg, #e11d48 0%, #b91c1c 100%);
+}
+.btn-primary.danger::before { display: none; }
+.btn-primary.danger:hover:not(:disabled) {
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+}
+
 .btn-primary::before {
     content: '';
     position: absolute;

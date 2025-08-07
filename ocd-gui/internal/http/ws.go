@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+    "context"
     "net/http"
     "net/url"
     "sync"
@@ -34,11 +35,44 @@ func HandleWebSocketDeploy(cfg *config.Config) http.HandlerFunc {
         if err != nil { return }
         defer conn.Close()
 
+        ctx, cancel := context.WithCancel(context.Background())
+        defer cancel()
+
         var req struct{ FolderPath string `json:"folderPath"` }
         if err := conn.ReadJSON(&req); err != nil { writeToWebSocket(conn, map[string]interface{}{"type":"complete","content":"Failed to read deployment request","success":false}); return }
         if req.FolderPath == "" { writeToWebSocket(conn, map[string]interface{}{"type":"complete","content":"Folder path is required","success":false}); return }
 
-        executor.RunOCDScriptWithWebSocket(req.FolderPath, conn, func(c *websocket.Conn, payload interface{}) error { return writeToWebSocket(c, payload) })
+        // Start deploy in background to allow receiving cancel messages
+        done := make(chan struct{})
+        go func() {
+            executor.RunOCDScriptWithWebSocket(ctx, req.FolderPath, conn, func(c *websocket.Conn, payload interface{}) error { return writeToWebSocket(c, payload) })
+            close(done)
+        }()
+
+        // Control reader goroutine
+        controlDone := make(chan struct{})
+        go func() {
+            defer close(controlDone)
+            for {
+                var ctrl struct{ Type string `json:"type"` }
+                if err := conn.ReadJSON(&ctrl); err != nil {
+                    return
+                }
+                if ctrl.Type == "cancel" {
+                    cancel()
+                    return
+                }
+            }
+        }()
+
+        // Wait for deployment completion; if control loop ends first (due to cancel), still wait for deploy goroutine to finish sending 'complete'
+        select {
+        case <-done:
+            return
+        case <-controlDone:
+            <-done
+            return
+        }
     }
 }
 
