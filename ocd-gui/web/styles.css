@@ -340,10 +340,13 @@ input[type="text"]::placeholder {
 
 /* Danger state for primary button during deployment */
 .btn-primary.danger {
-    background: linear-gradient(135deg, #e11d48 0%, #b91c1c 100%);
+    /* Neutral gray by default while deploying */
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
 }
 .btn-primary.danger::before { display: none; }
 .btn-primary.danger:hover:not(:disabled) {
+    /* Turn red only on hover */
+    background: linear-gradient(135deg, #e11d48 0%, #b91c1c 100%);
     box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
 }
 
