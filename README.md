@@ -5,7 +5,7 @@ A GUI-based deployment tool that simplifies the deployment process with real-tim
 ## Quick Start - Download & Run
 
 ### For Windows Users
-1. Download `dist/OCD.exe`
+1. Download from Releases: `/-/releases/latest` (OCD.exe)
 2. Double-click to run
 3. Your browser will open automatically
 4. **Requirements**: WSL (Windows Subsystem for Linux) must be installed
@@ -14,38 +14,43 @@ A GUI-based deployment tool that simplifies the deployment process with real-tim
 Choose the appropriate version for your system:
 
 #### Linux x64 (Intel/AMD 64-bit) - Most Common
-1. Download `dist/OCD-Tool-Linux-x64`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-x64)
 2. Make it executable: `chmod +x dist/OCD-Tool-Linux-x64`
 3. Run the tool: `./dist/OCD-Tool-Linux-x64`
 
 #### Linux x86 (32-bit)
-1. Download `dist/OCD-Tool-Linux-x86`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-x86)
 2. Make it executable: `chmod +x dist/OCD-Tool-Linux-x86`
 3. Run the tool: `./dist/OCD-Tool-Linux-x86`
 
 #### Linux ARM64 (64-bit ARM)
-1. Download `dist/OCD-Tool-Linux-ARM64`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-ARM64)
 2. Make it executable: `chmod +x dist/OCD-Tool-Linux-ARM64`
 3. Run the tool: `./dist/OCD-Tool-Linux-ARM64`
 
 #### Linux ARM (32-bit ARM)
-1. Download `dist/OCD-Tool-Linux-ARM`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-ARM)
 2. Make it executable: `chmod +x dist/OCD-Tool-Linux-ARM`
 3. Run the tool: `./dist/OCD-Tool-Linux-ARM`
 
 ### For macOS Users
 
 #### macOS Intel (x64)
-1. Download `dist/OCD-Tool-macOS-Intel`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-macOS-Intel)
 2. Make it executable: `chmod +x dist/OCD-Tool-macOS-Intel`
 3. Run the tool: `./dist/OCD-Tool-macOS-Intel`
 
 #### macOS Apple Silicon (M1/M2)
-1. Download `dist/OCD-Tool-macOS-AppleSilicon`
+1. Download from Releases: `/-/releases/latest` (OCD-Tool-macOS-AppleSilicon)
 2. Make it executable: `chmod +x dist/OCD-Tool-macOS-AppleSilicon`
 3. Run the tool: `./dist/OCD-Tool-macOS-AppleSilicon`
 
 **Note**: Your browser will open automatically on all platforms.
+
+Verify downloads: each release also includes a `SHA256SUMS.txt`. On Linux/macOS, you can verify with:
+```bash
+sha256sum -c SHA256SUMS.txt | grep OCD-Tool-Linux-x64
+```
 
 ## Features
 
@@ -86,7 +91,7 @@ Choose the appropriate version for your system:
 
 ### Building for All Platforms
 
-Use the provided root build script:
+Use the provided root build script (for contributors):
 chmod +x build/build-all-executables.sh
 DIST_DIR=dist ./build/build-all-executables.sh
 

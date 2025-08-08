@@ -1,0 +1,78 @@
+# GitLab CI: Build all platform binaries on tag and publish a Release with assets
+
+stages:
+  - build
+  - release
+
+variables:
+  CGO_ENABLED: "0"
+
+build_all:
+  stage: build
+  image: golang:1.22
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - go version
+    # Ensure module deps are ready
+    - cd app
+    - go mod download
+    - cd ..
+    - mkdir -p dist
+    # Windows
+    - GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/OCD.exe ./app/cmd/ocd-gui
+    # Linux
+    - GOOS=linux GOARCH=amd64 go build  -ldflags="-s -w" -o dist/OCD-Tool-Linux-x64       ./app/cmd/ocd-gui
+    - GOOS=linux GOARCH=386   go build  -ldflags="-s -w" -o dist/OCD-Tool-Linux-x86       ./app/cmd/ocd-gui
+    - GOOS=linux GOARCH=arm64 go build  -ldflags="-s -w" -o dist/OCD-Tool-Linux-ARM64     ./app/cmd/ocd-gui
+    - GOOS=linux GOARCH=arm   go build  -ldflags="-s -w" -o dist/OCD-Tool-Linux-ARM       ./app/cmd/ocd-gui
+    # macOS (cross-compile OK for pure Go)
+    - GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-Intel      ./app/cmd/ocd-gui
+    - GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-AppleSilicon ./app/cmd/ocd-gui
+    # Checksums
+    - cd dist && sha256sum * > SHA256SUMS.txt && cd ..
+  artifacts:
+    paths:
+      - dist/**
+    expire_in: 2 weeks
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs: [build_all]
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Creating release for $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: "OCD $CI_COMMIT_TAG"
+    description: "Auto-generated release for $CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "OCD.exe (Windows x64)"
+          filepath: "dist/OCD.exe"
+          job: build_all
+        - name: "OCD-Tool-Linux-x64"
+          filepath: "dist/OCD-Tool-Linux-x64"
+          job: build_all
+        - name: "OCD-Tool-Linux-x86"
+          filepath: "dist/OCD-Tool-Linux-x86"
+          job: build_all
+        - name: "OCD-Tool-Linux-ARM64"
+          filepath: "dist/OCD-Tool-Linux-ARM64"
+          job: build_all
+        - name: "OCD-Tool-Linux-ARM"
+          filepath: "dist/OCD-Tool-Linux-ARM"
+          job: build_all
+        - name: "OCD-Tool-macOS-Intel"
+          filepath: "dist/OCD-Tool-macOS-Intel"
+          job: build_all
+        - name: "OCD-Tool-macOS-AppleSilicon"
+          filepath: "dist/OCD-Tool-macOS-AppleSilicon"
+          job: build_all
+        - name: "SHA256SUMS.txt"
+          filepath: "dist/SHA256SUMS.txt"
+          job: build_all
+
+
