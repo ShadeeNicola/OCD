@@ -1,0 +1,7 @@
+# deploy-scripts v0.0.0 => ../deploy-scripts
+## explicit; go 1.24.5
+deploy-scripts
+# github.com/gorilla/websocket v1.5.3
+## explicit; go 1.12
+github.com/gorilla/websocket
+# deploy-scripts => ../deploy-scripts
