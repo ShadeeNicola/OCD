@@ -45,41 +45,31 @@ build_all:
 
 release:
   stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  image: curlimages/curl:8.7.1
   needs: [build_all]
   rules:
     - if: $CI_COMMIT_TAG
   script:
-    - echo "Creating release for $CI_COMMIT_TAG"
-  release:
-    tag_name: $CI_COMMIT_TAG
-    name: "OCD $CI_COMMIT_TAG"
-    description: "Auto-generated release for $CI_COMMIT_TAG"
-    assets:
-      links:
-        - name: "OCD.exe (Windows x64)"
-          filepath: "dist/OCD.exe"
-          job: build_all
-        - name: "OCD-Tool-Linux-x64"
-          filepath: "dist/OCD-Tool-Linux-x64"
-          job: build_all
-        - name: "OCD-Tool-Linux-x86"
-          filepath: "dist/OCD-Tool-Linux-x86"
-          job: build_all
-        - name: "OCD-Tool-Linux-ARM64"
-          filepath: "dist/OCD-Tool-Linux-ARM64"
-          job: build_all
-        - name: "OCD-Tool-Linux-ARM"
-          filepath: "dist/OCD-Tool-Linux-ARM"
-          job: build_all
-        - name: "OCD-Tool-macOS-Intel"
-          filepath: "dist/OCD-Tool-macOS-Intel"
-          job: build_all
-        - name: "OCD-Tool-macOS-AppleSilicon"
-          filepath: "dist/OCD-Tool-macOS-AppleSilicon"
-          job: build_all
-        - name: "SHA256SUMS.txt"
-          filepath: "dist/SHA256SUMS.txt"
-          job: build_all
+    - echo "Creating release via API for $CI_COMMIT_TAG"
+    # Create (or ensure) the release (ignore if exists)
+    - |
+      curl -sk --request POST \
+        --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        --data "name=OCD $CI_COMMIT_TAG&tag_name=$CI_COMMIT_TAG&description=Auto-generated release for $CI_COMMIT_TAG" \
+        "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases" \
+        || echo "release may already exist"
+    # Upload each file under dist/ and add as release asset link
+    - |
+      for f in dist/*; do \
+        echo "Uploading $f"; \
+        RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+               --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
+        URL=$(echo "$RESP" | sed -n 's/.*"url":"\\([^\"]*\\)".*/\1/p'); \
+        NAME=$(basename "$f"); \
+        FULL_URL="$CI_SERVER_URL/$CI_PROJECT_PATH$URL"; \
+        curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" \
+          "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"; \
+      done
 
 
