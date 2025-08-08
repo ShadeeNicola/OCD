@@ -10,7 +10,9 @@ OCD (One Click Deployer) is a GUI-based deployment tool that simplifies the depl
 - **Backend**: Go (Golang) 1.24.5
 - **Frontend**: Vanilla JavaScript (ES6 modules)
 - **Communication**: WebSocket for real-time updates
-- **Deployment**: Shell script (OCD.sh) with Maven, Docker, and Kubernetes integration (embedded via `deploy-scripts` module)
+- **Deployment**: Shell scripts (`OCD.sh`, `OCD-customization.sh`) embedded via `deploy-scripts` module
+- **Build & Packaging**: GitLab CI on tags builds cross-platform binaries and publishes Release assets; local `build/build-all-executables.sh` for contributors
+- **Versioning**: Version injected at build from Git tag via ldflags; exposed by `GET /api/health`
 - **Cross-platform**: Windows (WSL), Linux, macOS support
 
 ### Project Structure
@@ -357,7 +359,7 @@ require github.com/gorilla/websocket v1.5.3
 ### Single Platform (outputs to repo-level dist/)
 ```bash
 # Windows
-(cd app && go build -ldflags="-s -w" -o ../dist/OCD.exe ./cmd/ocd-gui)
+(cd app && go build -ldflags="-s -w -X app/internal/version.Version=$(git describe --tags --abbrev=0 2>/dev/null || echo dev)" -o ../dist/OCD.exe ./cmd/ocd-gui)
 
 # Linux x64
 (cd app && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui)
@@ -371,6 +373,10 @@ require github.com/gorilla/websocket v1.5.3
 chmod +x build/build-all-executables.sh
 DIST_DIR=dist ./build/build-all-executables.sh
 ```
+### CI Release Flow
+- Push a tag (e.g., `v2.0.1`)
+- Pipeline builds all targets with `-ldflags` injecting version/commit/date
+- A Release is created with binaries and `SHA256SUMS.txt`
 
 ## Usage Workflow
 

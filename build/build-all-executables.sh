@@ -16,21 +16,27 @@ mkdir -p "$DIST_DIR"
 CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH=$(uname -m)
 
+VERSION_TAG=${CI_COMMIT_TAG:-dev}
+COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+LDFLAGS="-s -w -X app/internal/version.Version=$VERSION_TAG -X app/internal/version.Commit=$COMMIT_SHA -X app/internal/version.Date=$BUILD_DATE"
+
 echo "Building OCD for all platforms..."
 echo "Module root: $MOD_ROOT"
 
 echo "Building Windows executable..."
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
 
 echo "Building Linux executables..."
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
-GOOS=linux GOARCH=386 go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
-GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
-GOOS=linux GOARCH=arm go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
+GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
+GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
+GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
+GOOS=linux GOARCH=arm go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
 
 echo "Building macOS executables..."
-GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o "$DIST_DIR/OCD-Tool-macOS-AppleSilicon" ./cmd/ocd-gui
+GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
+GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-AppleSilicon" ./cmd/ocd-gui
 
 echo "Build complete!"
 echo "Generated executables in repo '$DIST_DIR_REL' ($DIST_DIR)"

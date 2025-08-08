@@ -350,6 +350,14 @@ class OCDApp {
 
     initialize() {
         this.validateFolderPath();
+        // fetch version info and update UI footer
+        fetch('/api/health').then(r => r.json()).then(info => {
+            const el = document.getElementById('app-version');
+            if (el && info && info.version) {
+                el.textContent = info.version;
+                if (info.commit) el.title = `commit: ${info.commit}  built: ${info.date || ''}`;
+            }
+        }).catch(() => {});
     }
 
     cleanup() {

@@ -10,6 +10,7 @@ import (
     "app/internal/executor"
     "app/internal/progress"
     "app/internal/ui"
+    "app/internal/version"
 )
 
 func HandleBrowse(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +38,7 @@ func HandleDeploy(w http.ResponseWriter, r *http.Request) {
 
 func HandleHealth(w http.ResponseWriter, r *http.Request) {
     if r.Method != "GET" { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
-    health := map[string]interface{}{"status": "healthy", "timestamp": time.Now().Unix(), "version": "1.0.0"}
+    health := map[string]interface{}{"status": "healthy", "timestamp": time.Now().Unix(), "version": version.Version, "commit": version.Commit, "date": version.Date}
     w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(health)
 }
 

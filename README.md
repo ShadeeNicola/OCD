@@ -10,40 +10,15 @@ A GUI-based deployment tool that simplifies the deployment process with real-tim
 3. Your browser will open automatically
 4. **Requirements**: WSL (Windows Subsystem for Linux) must be installed
 
-### For Linux Users
-Choose the appropriate version for your system:
-
-#### Linux x64 (Intel/AMD 64-bit) - Most Common
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-x64)
-2. Make it executable: `chmod +x dist/OCD-Tool-Linux-x64`
-3. Run the tool: `./dist/OCD-Tool-Linux-x64`
-
-#### Linux x86 (32-bit)
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-x86)
-2. Make it executable: `chmod +x dist/OCD-Tool-Linux-x86`
-3. Run the tool: `./dist/OCD-Tool-Linux-x86`
-
-#### Linux ARM64 (64-bit ARM)
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-ARM64)
-2. Make it executable: `chmod +x dist/OCD-Tool-Linux-ARM64`
-3. Run the tool: `./dist/OCD-Tool-Linux-ARM64`
-
-#### Linux ARM (32-bit ARM)
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-Linux-ARM)
-2. Make it executable: `chmod +x dist/OCD-Tool-Linux-ARM`
-3. Run the tool: `./dist/OCD-Tool-Linux-ARM`
-
 ### For macOS Users
+1. Download from Releases: `/-/releases/latest` (choose `OCD-Tool-macOS-Intel` or `OCD-Tool-macOS-AppleSilicon`).
+2. Make it executable: `chmod +x dist/<downloaded-file>`
+3. Run: `./dist/<downloaded-file>`
 
-#### macOS Intel (x64)
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-macOS-Intel)
-2. Make it executable: `chmod +x dist/OCD-Tool-macOS-Intel`
-3. Run the tool: `./dist/OCD-Tool-macOS-Intel`
-
-#### macOS Apple Silicon (M1/M2)
-1. Download from Releases: `/-/releases/latest` (OCD-Tool-macOS-AppleSilicon)
-2. Make it executable: `chmod +x dist/OCD-Tool-macOS-AppleSilicon`
-3. Run the tool: `./dist/OCD-Tool-macOS-AppleSilicon`
+### For Linux Users
+1. Download from Releases: `/-/releases/latest` (choose your architecture: `OCD-Tool-Linux-x64`, `-x86`, `-ARM64`, `-ARM`).
+2. Make it executable: `chmod +x dist/<downloaded-file>`
+3. Run: `./dist/<downloaded-file>`
 
 **Note**: Your browser will open automatically on all platforms.
 
