@@ -10,13 +10,13 @@ OCD (One Click Deployer) is a GUI-based deployment tool that simplifies the depl
 - **Backend**: Go (Golang) 1.24.5
 - **Frontend**: Vanilla JavaScript (ES6 modules)
 - **Communication**: WebSocket for real-time updates
-- **Deployment**: Shell script (OCD.sh) with Maven, Docker, and Kubernetes integration
+- **Deployment**: Shell script (OCD.sh) with Maven, Docker, and Kubernetes integration (embedded via `deploy-scripts` module)
 - **Cross-platform**: Windows (WSL), Linux, macOS support
 
 ### Project Structure
 ```
 OCD/
-├── ocd-gui/                        # Main application directory
+├── app/                            # Main application directory
 │   ├── cmd/ocd-gui/               # Go entrypoint (main package)
 │   │   └── main.go
 │   ├── internal/                  # Non-exported application packages
@@ -38,13 +38,7 @@ OCD/
 │   │   └── ui/                    # UI embedding and dialogs
 │   │       ├── assets.go
 │   │       └── dialog.go
-│   ├── scripts/                   # Deployment scripts
-│   │   ├── OCD.sh
-│   │   ├── OCD-customization.sh
-│   │   ├── build-all-executables.sh
-│   │   └── shared/
-│   │       ├── utils.sh
-│   │       └── maven.sh
+│   ├── (no deployment scripts embedded here)
 │   ├── web/                       # Frontend assets
 │   │   ├── index.html
 │   │   ├── styles.css
@@ -56,6 +50,17 @@ OCD/
 │   │       └── progress-manager.js
 │   ├── go.mod                     # Go module
 │   └── go.sum
+├── deploy-scripts/                # Embedded deployment scripts module
+│   ├── go.mod
+│   ├── embed.go                   # Exposes ReadScript/ReadShared
+│   └── scripts/
+│       ├── OCD.sh
+│       ├── OCD-customization.sh
+│       └── shared/
+│           ├── utils.sh
+│           └── maven.sh
+├── build/                         # Build utilities (root-level)
+│   └── build-all-executables.sh   # Cross-platform build (outputs to repo dist/)
 ├── README.md                      # Project documentation
 └── OCD_PROJECT_CONTEXT.md         # This context document
 ```
@@ -64,7 +69,7 @@ OCD/
 
 ### Core Components
 
-#### 1. Main Application (`cmd/ocd-gui/main.go`)
+#### 1. Main Application (`app/cmd/ocd-gui/main.go`)
 - **Purpose**: Application entry point and server initialization
 - **Key Features**:
   - Embedded web filesystem loading
@@ -241,17 +246,17 @@ A specialized deployment script for customization projects that:
 4. Always builds `dockers/customization-jars`
 5. Deploys using project-specific patch commands (TBD)
 
-### Shared Functions (`scripts/shared/`)
+### Shared Functions (`deploy-scripts/scripts/shared/`)
 Both scripts use shared utility functions to eliminate code duplication:
 
-#### `shared/utils.sh`
+#### `deploy-scripts/scripts/shared/utils.sh`
 - Environment detection (WSL/Windows/Linux)
 - Colored output and logging
 - Git utilities (changed file detection)
 - Prerequisites checking
 - Connection validation
 
-#### `shared/maven.sh`
+#### `deploy-scripts/scripts/shared/maven.sh`
 - Maven settings management
 - Cross-platform Maven build functions
 - Path conversion utilities
@@ -349,22 +354,22 @@ require github.com/gorilla/websocket v1.5.3
 
 ## Build Process
 
-### Single Platform
+### Single Platform (outputs to repo-level dist/)
 ```bash
 # Windows
-go build -ldflags="-s -w" -o dist/OCD.exe ./cmd/ocd-gui
+(cd app && go build -ldflags="-s -w" -o ../dist/OCD.exe ./cmd/ocd-gui)
 
 # Linux x64
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui
+(cd app && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui)
 
 # macOS Apple Silicon
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui
+(cd app && GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui)
 ```
 
 ### All Platforms
 ```bash
-chmod +x scripts/build-all-executables.sh
-DIST_DIR=dist ./scripts/build-all-executables.sh
+chmod +x build/build-all-executables.sh
+DIST_DIR=dist ./build/build-all-executables.sh
 ```
 
 ## Usage Workflow

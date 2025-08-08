@@ -1,9 +1,0 @@
-dist/
-executables/
-*.exe
-*.exe~
-*.iml
-OCD.exe~
-OCD-Tool-*
-*.log
-

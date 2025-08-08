@@ -7,9 +7,9 @@ import (
     "path/filepath"
     "time"
 
-    "ocd-gui/internal/executor"
-    "ocd-gui/internal/progress"
-    "ocd-gui/internal/ui"
+    "app/internal/executor"
+    "app/internal/progress"
+    "app/internal/ui"
 )
 
 func HandleBrowse(w http.ResponseWriter, r *http.Request) {

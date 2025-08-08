@@ -13,8 +13,8 @@ import (
 
     "github.com/gorilla/websocket"
 
-    "ocd-gui/internal/progress"
-    ocdgui "ocd-gui"
+    "app/internal/progress"
+    ocdscripts "deploy-scripts"
 )
 
 var commandExecutor *CommandExecutor
@@ -103,7 +103,7 @@ func createTempOCDScript(folderPath string) (string, error) {
     projectType := detectProjectType(folderPath)
     scriptName := "OCD.sh"
     if projectType == "customization" { scriptName = "OCD-customization.sh" }
-    scriptContent, err := ocdgui.ReadScript(scriptName)
+    scriptContent, err := ocdscripts.ReadScript(scriptName)
     if err != nil { return "", fmt.Errorf("failed to read embedded script %s: %w", scriptName, err) }
     tempFile, err := ioutil.TempFile("", "OCD_*.sh"); if err != nil { return "", fmt.Errorf("failed to create temp file: %w", err) }
     defer tempFile.Close()
@@ -116,7 +116,7 @@ func createTempSharedFiles() (string, error) {
     tempDir, err := ioutil.TempDir("", "OCD_shared_*"); if err != nil { return "", fmt.Errorf("failed to create temp directory: %w", err) }
     sharedFiles := []string{"utils.sh", "maven.sh"}
     for _, sharedFile := range sharedFiles {
-        content, err := ocdgui.ReadShared(sharedFile)
+        content, err := ocdscripts.ReadShared(sharedFile)
         if err != nil { os.RemoveAll(tempDir); return "", fmt.Errorf("failed to read embedded shared file %s: %w", sharedFile, err) }
         filePath := filepath.Join(tempDir, filepath.Base(sharedFile))
         if err := ioutil.WriteFile(filePath, content, 0644); err != nil { os.RemoveAll(tempDir); return "", fmt.Errorf("failed to write shared file %s: %w", sharedFile, err) }

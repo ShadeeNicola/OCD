@@ -8,8 +8,8 @@ import (
 
     "github.com/gorilla/websocket"
 
-    "ocd-gui/internal/executor"
-    "ocd-gui/internal/config"
+    "app/internal/executor"
+    "app/internal/config"
 )
 
 var wsMutex sync.Mutex

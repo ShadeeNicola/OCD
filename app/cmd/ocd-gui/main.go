@@ -8,11 +8,11 @@ import (
     "time"
     "os/exec"
 
-    cfgpkg "ocd-gui/internal/config"
-    httpapi "ocd-gui/internal/http"
-    "ocd-gui/internal/ui"
-    "ocd-gui/internal/executor"
-    "ocd-gui/internal/logging"
+    cfgpkg "app/internal/config"
+    httpapi "app/internal/http"
+    "app/internal/ui"
+    "app/internal/executor"
+    "app/internal/logging"
 )
 
 func main() {

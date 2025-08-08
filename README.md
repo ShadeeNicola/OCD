@@ -71,8 +71,8 @@ Choose the appropriate version for your system:
    git clone <your-repo-url>
    cd OCD
 
-2. Build the application (from `ocd-gui`):
-   cd ocd-gui && go build -ldflags="-s -w" -o dist/OCD.exe ./cmd/ocd-gui
+2. Build the application (outputs to repo-level `dist/`):
+   (cd app && go build -ldflags="-s -w" -o ../dist/OCD.exe ./cmd/ocd-gui)
 
 ## Usage
 
@@ -86,21 +86,21 @@ Choose the appropriate version for your system:
 
 ### Building for All Platforms
 
-Use the provided build script (from `ocd-gui`):
-chmod +x scripts/build-all-executables.sh
-DIST_DIR=dist ./scripts/build-all-executables.sh
+Use the provided root build script:
+chmod +x build/build-all-executables.sh
+DIST_DIR=dist ./build/build-all-executables.sh
 
-Or build manually for specific platforms (from `ocd-gui`):
+Or build manually for specific platforms (outputs to repo-level `dist/`):
 # Windows
-go build -ldflags="-s -w" -o dist/OCD.exe ./cmd/ocd-gui
+(cd app && go build -ldflags="-s -w" -o ../dist/OCD.exe ./cmd/ocd-gui)
 
 # Linux x64
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui
+(cd app && GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../dist/OCD-Tool-Linux-x64 ./cmd/ocd-gui)
 
 # macOS Apple Silicon
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui
+(cd app && GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o ../dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui)
 
-### Project Structure (Go module lives in `ocd-gui/`)
+### Project Structure (Go module lives in `app/`)
 
 - cmd/ocd-gui/main.go - Application entry point
 - internal/http - HTTP and WebSocket handlers
@@ -111,9 +111,11 @@ GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/OCD-Tool-macOS-AppleS
 - internal/progress - Progress parsing and DTOs
 - internal/ui - Embedded web assets and folder dialog
 - web/ - Frontend assets (HTML, CSS, JavaScript)
-- scripts/ - Deployment scripts
+- deploy-scripts/ - Embedded deployment scripts module
   - scripts/OCD.sh, scripts/OCD-customization.sh
   - scripts/shared/ (utils.sh, maven.sh)
+- scripts/ - Build utilities (root)
+  - build/build-all-executables.sh
 
 ## Troubleshooting
 

@@ -2,7 +2,7 @@ package ui
 
 import (
     "io/fs"
-    ocdgui "ocd-gui"
+    ocdgui "app"
 )
 
 // GetWebFS returns the embedded web filesystem from the root embed

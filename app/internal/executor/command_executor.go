@@ -13,9 +13,10 @@ import (
 
     "github.com/gorilla/websocket"
 
-    "ocd-gui/internal/config"
-    "ocd-gui/internal/progress"
-    "ocd-gui/internal/security"
+    "app/internal/config"
+    "app/internal/progress"
+    "app/internal/security"
+    ocdscripts "deploy-scripts"
 )
 
 type CommandExecutor struct { config *config.Config }
@@ -98,26 +99,40 @@ func (ce *CommandExecutor) ExecuteWithWebSocket(folderPath string, conn *websock
 }
 
 func (ce *CommandExecutor) buildCommand(safeFolderPath string) (*exec.Cmd, error) {
-    currentDir, err := os.Getwd()
-    if err != nil { return nil, fmt.Errorf("error getting current directory: %s", err.Error()) }
+    // Create temporary files from embedded scripts in ocd-scripts module
+    tempScriptFile, err := os.CreateTemp("", "OCD_*.sh")
+    if err != nil { return nil, fmt.Errorf("failed to create temp script: %s", err.Error()) }
+    defer tempScriptFile.Close()
 
-    ocdScriptPath := filepath.Join(currentDir, "scripts", ce.config.ScriptName)
-    sharedDirPath := filepath.Join(currentDir, "scripts", "shared")
+    scriptBytes, err := ocdscripts.ReadScript(ce.config.ScriptName)
+    if err != nil { return nil, fmt.Errorf("failed to read embedded script %s: %s", ce.config.ScriptName, err.Error()) }
+    if _, err := tempScriptFile.Write(scriptBytes); err != nil { return nil, fmt.Errorf("failed to write temp script: %s", err.Error()) }
+    if err := os.Chmod(tempScriptFile.Name(), 0755); err != nil { return nil, fmt.Errorf("failed to chmod temp script: %s", err.Error()) }
+
+    tempSharedDir, err := os.MkdirTemp("", "OCD_shared_*")
+    if err != nil { return nil, fmt.Errorf("failed to create temp shared dir: %s", err.Error()) }
+    // Note: Do not remove tempSharedDir here; it's needed by the child process until it exits
+    for _, shared := range []string{"utils.sh", "maven.sh"} {
+        b, err := ocdscripts.ReadShared(shared)
+        if err != nil { return nil, fmt.Errorf("failed to read embedded shared file %s: %s", shared, err.Error()) }
+        p := filepath.Join(tempSharedDir, shared)
+        if err := os.WriteFile(p, b, 0644); err != nil { return nil, fmt.Errorf("failed to write shared file %s: %s", shared, err.Error()) }
+    }
 
     var cmd *exec.Cmd
     switch runtime.GOOS {
     case "windows":
         if _, err := exec.LookPath("wsl"); err == nil {
             wslPath := convertToWSLPath(safeFolderPath)
-            ocdScriptWSLPath := convertToWSLPath(ocdScriptPath)
-            sharedDirWSLPath := convertToWSLPath(sharedDirPath)
+            ocdScriptWSLPath := convertToWSLPath(tempScriptFile.Name())
+            sharedDirWSLPath := convertToWSLPath(tempSharedDir)
             cmd = exec.Command("wsl", "--user", ce.config.WSLUser, "bash", "-l", "-c",
                 buildSecureWSLCommand(ocdScriptWSLPath, sharedDirWSLPath, wslPath))
         } else {
             return nil, fmt.Errorf("WSL not available on Windows. Please install WSL to use OCD")
         }
     case "linux":
-        cmd = exec.Command("bash", "-l", "-c", buildSecureLinuxCommand(ocdScriptPath, sharedDirPath, safeFolderPath))
+        cmd = exec.Command("bash", "-l", "-c", buildSecureLinuxCommand(tempScriptFile.Name(), tempSharedDir, safeFolderPath))
     default:
         return nil, fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
     }
