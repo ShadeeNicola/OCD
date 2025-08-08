@@ -19,25 +19,25 @@ build_all:
   script:
     - go version
     # Build using vendored dependencies (no external network required)
-    - cd app && cd ..
-    - mkdir -p dist
+    - cd app
+    - mkdir -p ../dist
     # Windows
     - |
       VERSION_TAG=${CI_COMMIT_TAG:-dev}
       COMMIT_SHA=$(git rev-parse --short HEAD)
       BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       LDFLAGS="-s -w -X app/internal/version.Version=$VERSION_TAG -X app/internal/version.Commit=$COMMIT_SHA -X app/internal/version.Date=$BUILD_DATE"
-      GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/OCD.exe ./app/cmd/ocd-gui
+      GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
     # Linux
-    - GOOS=linux GOARCH=amd64 go build  -ldflags="$LDFLAGS" -o dist/OCD-Tool-Linux-x64       ./app/cmd/ocd-gui
-    - GOOS=linux GOARCH=386   go build  -ldflags="$LDFLAGS" -o dist/OCD-Tool-Linux-x86       ./app/cmd/ocd-gui
-    - GOOS=linux GOARCH=arm64 go build  -ldflags="$LDFLAGS" -o dist/OCD-Tool-Linux-ARM64     ./app/cmd/ocd-gui
-    - GOOS=linux GOARCH=arm   go build  -ldflags="$LDFLAGS" -o dist/OCD-Tool-Linux-ARM       ./app/cmd/ocd-gui
+    - GOOS=linux GOARCH=amd64 go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-x64       ./cmd/ocd-gui
+    - GOOS=linux GOARCH=386   go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-x86       ./cmd/ocd-gui
+    - GOOS=linux GOARCH=arm64 go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-ARM64     ./cmd/ocd-gui
+    - GOOS=linux GOARCH=arm   go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-ARM       ./cmd/ocd-gui
     # macOS (cross-compile OK for pure Go)
-    - GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o dist/OCD-Tool-macOS-Intel      ./app/cmd/ocd-gui
-    - GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o dist/OCD-Tool-macOS-AppleSilicon ./app/cmd/ocd-gui
+    - GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-macOS-Intel      ./cmd/ocd-gui
+    - GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui
     # Checksums
-    - cd dist && sha256sum * > SHA256SUMS.txt && cd ..
+    - cd ../dist && sha256sum * > SHA256SUMS.txt && cd ../app
   artifacts:
     paths:
       - dist/**
