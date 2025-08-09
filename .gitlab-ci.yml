@@ -21,22 +21,13 @@ build_all:
     # Build using vendored dependencies (no external network required)
     - cd app
     - mkdir -p ../dist
-    # Windows
+    # Windows (resource.syso is committed; Go links it automatically)
     - |
       VERSION_TAG=${CI_COMMIT_TAG:-dev}
       COMMIT_SHA=$(git rev-parse --short HEAD)
       BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       LDFLAGS="-s -w -X app/internal/version.Version=$VERSION_TAG -X app/internal/version.Commit=$COMMIT_SHA -X app/internal/version.Date=$BUILD_DATE"
-      # Build Windows executable with embedded icon using vendored tool
-      if [ -f "icons/ocd-logo.ico" ] && [ -f "versioninfo.json" ] && [ -f "../tools/goversioninfo-linux" ]; then
-        echo "Generating Windows resources with icon using vendored tool..."
-        ../tools/goversioninfo-linux -icon=icons/ocd-logo.ico versioninfo.json
-        GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
-        rm -f resource.syso
-      else
-        echo "Building Windows executable without icon (missing tools or files)..."
-        GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
-      fi
+      GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
     # Linux
     - GOOS=linux GOARCH=amd64 go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-x64       ./cmd/ocd-gui
     - GOOS=linux GOARCH=386   go build  -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-Linux-x86       ./cmd/ocd-gui
