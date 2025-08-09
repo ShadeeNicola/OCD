@@ -39,6 +39,7 @@ echo "Building macOS executables..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
 GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-AppleSilicon" ./cmd/ocd-gui
 
+
 echo "Build complete!"
 echo "Generated executables in repo '$DIST_DIR_REL' ($DIST_DIR)"
 
