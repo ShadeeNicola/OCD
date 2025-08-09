@@ -50,11 +50,11 @@ release:
   rules:
     - if: $CI_COMMIT_TAG
   script:
-    - echo "Creating release via API for $CI_COMMIT_TAG"
-    - echo "Listing dist/ contents"
-    - ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
-    # Sanity check expected artifacts
     - |
+      set -euo pipefail
+      echo "Creating release via API for $CI_COMMIT_TAG"
+      echo "Listing dist/ contents"
+      ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
       expected=(
         "OCD.exe"
         "OCD-Tool-Linux-x64"
@@ -70,25 +70,18 @@ release:
         if [ ! -f "dist/$f" ]; then echo "MISSING: dist/$f"; missing=1; fi
       done
       if [ "$missing" = 1 ]; then echo "One or more expected artifacts are missing"; exit 1; fi
-    # Create (or ensure) the release (ignore if exists)
-    - |
       curl -sk --request POST \
         --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --data "name=OCD $CI_COMMIT_TAG&tag_name=$CI_COMMIT_TAG&description=Auto-generated release for $CI_COMMIT_TAG" \
         "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases" \
         || echo "release may already exist"
-    # Upload each file under dist/ and add as release asset link
-    - |
       for f in dist/*; do \
         echo "Uploading $f"; \
-        RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-               --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
-        URL=$(echo "$RESP" | sed -n 's/.*"url":"\\([^\"]*\\)".*/\1/p'); \
+        RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
+        URL=$(echo "$RESP" | sed -n 's/.*"url":"\([^\"]*\)".*/\1/p'); \
         NAME=$(basename "$f"); \
         FULL_URL="$CI_SERVER_URL/$CI_PROJECT_PATH$URL"; \
-        curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-          --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" \
-          "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"; \
+        curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"; \
       done
 
 
