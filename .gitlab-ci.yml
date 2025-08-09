@@ -36,8 +36,7 @@ build_all:
     # macOS (cross-compile OK for pure Go)
     - GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-macOS-Intel      ./cmd/ocd-gui
     - GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o ../dist/OCD-Tool-macOS-AppleSilicon ./cmd/ocd-gui
-    # Checksums
-    - cd ../dist && sha256sum * > SHA256SUMS.txt && cd ../app
+
   artifacts:
     paths:
       - dist/**
@@ -56,7 +55,7 @@ release:
       echo "Creating release via API for $CI_COMMIT_TAG"
       echo "Listing dist/ contents"
       ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
-      expected="OCD.exe OCD-Tool-Linux-x64 OCD-Tool-Linux-x86 OCD-Tool-Linux-ARM64 OCD-Tool-Linux-ARM OCD-Tool-macOS-Intel OCD-Tool-macOS-AppleSilicon SHA256SUMS.txt"
+      expected="OCD.exe OCD-Tool-Linux-x64 OCD-Tool-Linux-x86 OCD-Tool-Linux-ARM64 OCD-Tool-Linux-ARM OCD-Tool-macOS-Intel OCD-Tool-macOS-AppleSilicon"
       missing=0
       for f in $expected; do
         if [ ! -f "dist/$f" ]; then echo "MISSING: dist/$f"; missing=1; fi
@@ -100,11 +99,11 @@ release:
       FINAL_ASSETS=$(curl -sk --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links" || true)
       ASSET_COUNT=$(echo "$FINAL_ASSETS" | grep -o '"name"' | wc -l)
       echo "Total assets linked: $ASSET_COUNT"
-      echo "Expected: 8 (OCD.exe, OCD-Tool-Linux-x64, OCD-Tool-Linux-x86, OCD-Tool-Linux-ARM64, OCD-Tool-Linux-ARM, OCD-Tool-macOS-Intel, OCD-Tool-macOS-AppleSilicon, SHA256SUMS.txt)"
-      if [ "$ASSET_COUNT" = "8" ]; then
+      echo "Expected: 7 (OCD.exe, OCD-Tool-Linux-x64, OCD-Tool-Linux-x86, OCD-Tool-Linux-ARM64, OCD-Tool-Linux-ARM, OCD-Tool-macOS-Intel, OCD-Tool-macOS-AppleSilicon)"
+      if [ "$ASSET_COUNT" = "7" ]; then
         echo "SUCCESS: All assets uploaded correctly"
       else
-        echo "ERROR: Expected 8 assets but found $ASSET_COUNT"
+        echo "ERROR: Expected 7 assets but found $ASSET_COUNT"
         echo "Final assets response: $FINAL_ASSETS"
         exit 1
       fi
