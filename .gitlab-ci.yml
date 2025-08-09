@@ -73,12 +73,39 @@ release:
         curl -sk --request DELETE --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links/$id" >/dev/null || true; \
       done
       for f in dist/*; do \
-        echo "Uploading $f"; \
+        echo "=== Uploading $f ==="; \
         RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
-        URL=$(echo "$RESP" | sed -n 's/.*"url":"\([^\"]*\)".*/\1/p'); \
-        NAME=$(basename "$f"); \
-        FULL_URL="$CI_PROJECT_URL$URL"; \
-        curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"; \
+        echo "Upload response: $RESP"; \
+        if echo "$RESP" | grep -q '"url"'; then \
+          URL=$(echo "$RESP" | sed -n 's/.*"url":"\([^\"]*\)".*/\1/p'); \
+          NAME=$(basename "$f"); \
+          FULL_URL="$CI_PROJECT_URL$URL"; \
+          echo "Linking asset: $NAME -> $FULL_URL"; \
+          LINK_RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"); \
+          echo "Link response: $LINK_RESP"; \
+          if echo "$LINK_RESP" | grep -q '"id"'; then \
+            echo "SUCCESS: $NAME linked successfully"; \
+          else \
+            echo "ERROR: Failed to link $NAME"; \
+            echo "Link response: $LINK_RESP"; \
+          fi; \
+        else \
+          echo "ERROR: Failed to upload $f"; \
+          echo "Upload response: $RESP"; \
+        fi; \
       done
+      echo "=== Upload Summary ==="
+      echo "Checking final release assets..."
+      FINAL_ASSETS=$(curl -sk --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links" || true)
+      ASSET_COUNT=$(echo "$FINAL_ASSETS" | grep -o '"name"' | wc -l)
+      echo "Total assets linked: $ASSET_COUNT"
+      echo "Expected: 8 (OCD.exe, OCD-Tool-Linux-x64, OCD-Tool-Linux-x86, OCD-Tool-Linux-ARM64, OCD-Tool-Linux-ARM, OCD-Tool-macOS-Intel, OCD-Tool-macOS-AppleSilicon, SHA256SUMS.txt)"
+      if [ "$ASSET_COUNT" = "8" ]; then
+        echo "SUCCESS: All assets uploaded correctly"
+      else
+        echo "ERROR: Expected 8 assets but found $ASSET_COUNT"
+        echo "Final assets response: $FINAL_ASSETS"
+        exit 1
+      fi
 
 
