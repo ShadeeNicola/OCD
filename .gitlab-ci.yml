@@ -51,6 +51,25 @@ release:
     - if: $CI_COMMIT_TAG
   script:
     - echo "Creating release via API for $CI_COMMIT_TAG"
+    - echo "Listing dist/ contents"
+    - ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
+    # Sanity check expected artifacts
+    - |
+      expected=(
+        "OCD.exe"
+        "OCD-Tool-Linux-x64"
+        "OCD-Tool-Linux-x86"
+        "OCD-Tool-Linux-ARM64"
+        "OCD-Tool-Linux-ARM"
+        "OCD-Tool-macOS-Intel"
+        "OCD-Tool-macOS-AppleSilicon"
+        "SHA256SUMS.txt"
+      )
+      missing=0
+      for f in "${expected[@]}"; do
+        if [ ! -f "dist/$f" ]; then echo "MISSING: dist/$f"; missing=1; fi
+      done
+      if [ "$missing" = 1 ]; then echo "One or more expected artifacts are missing"; exit 1; fi
     # Create (or ensure) the release (ignore if exists)
     - |
       curl -sk --request POST \
