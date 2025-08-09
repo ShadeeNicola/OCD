@@ -27,14 +27,14 @@ build_all:
       COMMIT_SHA=$(git rev-parse --short HEAD)
       BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
       LDFLAGS="-s -w -X app/internal/version.Version=$VERSION_TAG -X app/internal/version.Commit=$COMMIT_SHA -X app/internal/version.Date=$BUILD_DATE"
-      # Generate Windows resources with icon using vendored tool
-      if [ -f "icons/ocd-logo.ico" ] && [ -f "versioninfo.json" ] && [ -f "vendor/tools/goversioninfo/goversioninfo.exe" ]; then
-        echo "Generating Windows resources with icon..."
-        vendor/tools/goversioninfo/goversioninfo.exe -icon=icons/ocd-logo.ico versioninfo.json
+      # Build Windows executable with embedded icon using vendored tool
+      if [ -f "icons/ocd-logo.ico" ] && [ -f "versioninfo.json" ] && [ -f "../tools/goversioninfo-linux" ]; then
+        echo "Generating Windows resources with icon using vendored tool..."
+        ../tools/goversioninfo-linux -icon=icons/ocd-logo.ico versioninfo.json
         GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
         rm -f resource.syso
       else
-        echo "Building Windows executable without icon..."
+        echo "Building Windows executable without icon (missing tools or files)..."
         GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o ../dist/OCD.exe ./cmd/ocd-gui
       fi
     # Linux
