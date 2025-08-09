@@ -45,14 +45,16 @@ build_all:
 
 release:
   stage: release
-  image: curlimages/curl:8.7.1
+  image: alpine:3.19
   needs: [build_all]
   rules:
     - if: $CI_COMMIT_TAG
   script:
     - |
       set -e
-      echo "Cleaning existing release asset links (no jq required)"
+      echo "Installing curl and jq"
+      apk add --no-cache curl jq >/dev/null
+      echo "Cleaning existing release asset links"
       echo "Creating release via API for $CI_COMMIT_TAG"
       echo "Listing dist/ contents"
       ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
@@ -75,9 +77,9 @@ release:
       for f in dist/*; do \
         echo "Uploading $f"; \
         RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
-        URL=$(echo "$RESP" | sed -n 's/.*"url":"\([^\"]*\)".*/\1/p'); \
+        URL=$(echo "$RESP" | jq -r '.url'); \
         NAME=$(basename "$f"); \
-        FULL_URL="$CI_SERVER_URL/$CI_PROJECT_PATH$URL"; \
+        FULL_URL="$CI_PROJECT_URL$URL"; \
         curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"; \
       done
 
