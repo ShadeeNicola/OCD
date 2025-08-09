@@ -26,7 +26,20 @@ echo "Building OCD for all platforms..."
 echo "Module root: $MOD_ROOT"
 
 echo "Building Windows executable..."
-GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+# Generate Windows resource file if icon exists
+if [ -f "icons/ocd-logo.ico" ] && [ -f "versioninfo.json" ]; then
+    # Use vendored goversioninfo tool
+    GOVERSIONINFO_PATH="vendor/tools/goversioninfo/goversioninfo.exe"
+    if [ -f "$GOVERSIONINFO_PATH" ]; then
+        "$GOVERSIONINFO_PATH" -icon=icons/ocd-logo.ico versioninfo.json >/dev/null 2>&1
+        GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+        [ -f "resource.syso" ] && rm resource.syso
+    else
+        GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+    fi
+else
+    GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+fi
 
 echo "Building Linux executables..."
 GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
