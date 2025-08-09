@@ -52,8 +52,7 @@ release:
   script:
     - |
       set -e
-      echo "Installing jq for JSON parsing"
-      apk add --no-cache jq >/dev/null 2>&1 || true
+      echo "Cleaning existing release asset links (no jq required)"
       echo "Creating release via API for $CI_COMMIT_TAG"
       echo "Listing dist/ contents"
       ls -lah dist || { echo "ERROR: dist/ directory not found"; exit 1; }
@@ -70,8 +69,8 @@ release:
         || echo "release may already exist"
       # Remove any existing asset links to avoid duplicates, then upload fresh
       existing=$(curl -sk --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links" || true)
-      echo "$existing" | jq -r '.[].id' 2>/dev/null | while read id; do \
-        [ -n "$id" ] && curl -sk --request DELETE --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links/$id" >/dev/null || true; \
+      for id in $(echo "$existing" | grep -o '"id":[0-9]\+' | awk -F: '{print $2}'); do \
+        curl -sk --request DELETE --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links/$id" >/dev/null || true; \
       done
       for f in dist/*; do \
         echo "Uploading $f"; \
