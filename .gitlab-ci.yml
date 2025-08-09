@@ -72,16 +72,17 @@ release:
       for id in $(echo "$existing" | grep -o '"id":[0-9]\+' | awk -F: '{print $2}'); do \
         curl -sk --request DELETE --header "JOB-TOKEN: $CI_JOB_TOKEN" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links/$id" >/dev/null || true; \
       done
+      echo "Debug info: PROJECT_ID=$CI_PROJECT_ID, SERVER_URL=$CI_SERVER_URL"
       for f in dist/*; do \
-        echo "=== Uploading $f ==="; \
-        RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --form "file=@$f" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/uploads"); \
+        echo "=== Uploading $f via Generic Package Repository ==="; \
+        NAME=$(basename "$f"); \
+        PACKAGE_URL="$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/packages/generic/ocd-releases/$CI_COMMIT_TAG/$NAME"; \
+        echo "Upload URL: $PACKAGE_URL"; \
+        RESP=$(curl -sk --request PUT --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$f" "$PACKAGE_URL"); \
         echo "Upload response: $RESP"; \
-        if echo "$RESP" | grep -q '"url"'; then \
-          URL=$(echo "$RESP" | sed -n 's/.*"url":"\([^\"]*\)".*/\1/p'); \
-          NAME=$(basename "$f"); \
-          FULL_URL="$CI_PROJECT_URL$URL"; \
-          echo "Linking asset: $NAME -> $FULL_URL"; \
-          LINK_RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$FULL_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"); \
+        if echo "$RESP" | grep -q '"file_name"'; then \
+          echo "Linking asset: $NAME -> $PACKAGE_URL"; \
+          LINK_RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$PACKAGE_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"); \
           echo "Link response: $LINK_RESP"; \
           if echo "$LINK_RESP" | grep -q '"id"'; then \
             echo "SUCCESS: $NAME linked successfully"; \
