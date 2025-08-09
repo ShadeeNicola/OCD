@@ -80,7 +80,7 @@ release:
         echo "Upload URL: $PACKAGE_URL"; \
         RESP=$(curl -sk --request PUT --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$f" "$PACKAGE_URL"); \
         echo "Upload response: $RESP"; \
-        if echo "$RESP" | grep -q '"file_name"'; then \
+        if echo "$RESP" | grep -q '"201 Created"'; then \
           echo "Linking asset: $NAME -> $PACKAGE_URL"; \
           LINK_RESP=$(curl -sk --request POST --header "JOB-TOKEN: $CI_JOB_TOKEN" --data-urlencode "name=$NAME" --data-urlencode "url=$PACKAGE_URL" "$CI_SERVER_URL/api/v4/projects/$CI_PROJECT_ID/releases/$CI_COMMIT_TAG/assets/links"); \
           echo "Link response: $LINK_RESP"; \
