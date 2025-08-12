@@ -27,17 +27,17 @@ echo "Module root: $MOD_ROOT"
 
 echo "Building Windows executable..."
 # resource.syso is committed in app/ and picked up automatically by Go on Windows targets
-GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
+GOOS=windows GOARCH=amd64 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
 
 echo "Building Linux executables..."
-GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
-GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
-GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
-GOOS=linux GOARCH=arm go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
+GOOS=linux GOARCH=amd64 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
+GOOS=linux GOARCH=386 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
+GOOS=linux GOARCH=arm64 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
+GOOS=linux GOARCH=arm go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
 
 echo "Building macOS executables..."
-GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
-GOOS=darwin GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-AppleSilicon" ./cmd/ocd-gui
+GOOS=darwin GOARCH=amd64 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
+GOOS=darwin GOARCH=arm64 go build -mod=mod -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-AppleSilicon" ./cmd/ocd-gui
 
 
 echo "Build complete!"
