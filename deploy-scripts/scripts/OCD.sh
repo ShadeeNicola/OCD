@@ -69,9 +69,12 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$SCRIPT_DIR/shared"
 
-# Source shared functions
-source "$SHARED_DIR/utils.sh"
-source "$SHARED_DIR/maven.sh"
+# Source all shared functions dynamically
+for shared_script in "$SHARED_DIR"/*.sh; do
+    if [[ -f "$shared_script" ]]; then
+        source "$shared_script"
+    fi
+done
 
 # =============================================================================
 # ATT-SPECIFIC FUNCTIONS
@@ -410,7 +413,7 @@ update_kubernetes_microservice() {
         log_command "kubectl get microservice '$service_name' -n '$namespace'"
 
         # Enable proxy and run kubectl command
-        if bash -l -c "proxy on && kubectl get microservice '$service_name' -n '$namespace' --no-headers" > /dev/null 2>&1; then
+        if bash -l -c "proxy on 2>/dev/null || true && kubectl get microservice '$service_name' -n '$namespace' --no-headers" > /dev/null 2>&1; then
             found_service="$service_name"
             write_colored_output "Found microservice: $found_service" "green"
             break
@@ -426,49 +429,8 @@ update_kubernetes_microservice() {
         return 1
     fi
 
-    # Get the current microservice spec to find the initContainer index
-    log_command "kubectl get microservice '$found_service' -n '$namespace' -o jsonpath='{range .spec.template.spec.initContainers[*]}{@.name}{"\\n"}{end}'"
-
-    local init_containers_output=$(bash -l -c "proxy on && kubectl get microservice '$found_service' -n '$namespace' -o jsonpath='{range .spec.template.spec.initContainers[*]}{@.name}{"\n"}{end}'" 2>/dev/null)
-
-    local init_container_index=$(echo "$init_containers_output" | grep -n -E "(copy-application-files|source-code)" | cut -d: -f1)
-
-    if [[ -z "$init_container_index" ]]; then
-        write_colored_output "Error: Neither copy-application-files nor source-code initContainer found" "red"
-        write_colored_output "Available initContainers:" "red"
-        echo "$init_containers_output"
-        return 1
-    fi
-
-    # Validate that we got a valid number
-    if [[ ! "$init_container_index" =~ ^[0-9]+$ ]] || [[ "$init_container_index" -lt 1 ]]; then
-        write_colored_output "Error: Invalid initContainer index: $init_container_index" "red"
-        return 1
-    fi
-
-    # Convert to zero-based index
-    init_container_index=$((init_container_index - 1))
-    write_colored_output "Using initContainer index: $init_container_index" "blue"
-
-    # Show current image before patching
-    local current_image=$(bash -l -c "proxy on && kubectl get microservice '$found_service' -n '$namespace' -o jsonpath='{.spec.template.spec.initContainers[$init_container_index].image}'" 2>/dev/null)
-
-    # Patch the microservice with new image in the correct initContainer
-    local patch_command="kubectl patch microservice '$found_service' -n '$namespace' --type='json' -p='[{\"op\": \"replace\", \"path\": \"/spec/template/spec/initContainers/${init_container_index}/image\", \"value\": \"$image_tag\"}]'"
-
-    log_command "$patch_command"
-
-    if bash -l -c "proxy on && $patch_command" > /dev/null 2>&1; then
-        write_colored_output "Microservice $found_service patched with new image" "green"
-
-        # Verify the patch worked
-        local updated_image=$(bash -l -c "proxy on && kubectl get microservice '$found_service' -n '$namespace' -o jsonpath='{.spec.template.spec.initContainers[$init_container_index].image}'" 2>/dev/null)
-
-        return 0
-    else
-        write_colored_output "Failed to patch microservice" "red"
-        return 1
-    fi
+    # Use the generic function to update the application container
+    update_kubernetes_microservice_generic "$image_tag" "$namespace" "$found_service" "(copy-application-files|source-code)" "application"
 }
 
 deploy_microservice() {

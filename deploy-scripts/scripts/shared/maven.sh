@@ -40,6 +40,35 @@ get_maven_settings() {
 }
 
 # =============================================================================
+# DOCKER AND REGISTRY FUNCTIONS
+# =============================================================================
+
+get_registry_and_tag_from_settings() {
+    local settings_file_path=""
+    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
+        settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    else
+        settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    fi
+
+    local push_registry=$(grep -o '<docker\.push\.registry>[^<]*</docker\.push\.registry>' "$settings_file_path" | sed 's/<[^>]*>//g')
+    local current_docker_tag=$(grep -o '<docker\.tag3>[^<]*</docker\.tag3>' "$settings_file_path" | sed 's/<[^>]*>//g')
+
+    if [[ -z "$push_registry" ]]; then
+        write_colored_output "Error: Could not find docker.push.registry in Maven settings" "red"
+        return 1
+    fi
+
+    if [[ -z "$current_docker_tag" ]]; then
+        write_colored_output "Error: Could not find docker.tag3 in Maven settings" "red"
+        return 1
+    fi
+
+    echo "$push_registry|$current_docker_tag"
+    return 0
+}
+
+# =============================================================================
 # MAVEN BUILD FUNCTIONS
 # =============================================================================
 

@@ -14,6 +14,8 @@ func OpenFolderDialog() (string, error) {
         return openFolderDialogWindows()
     case "linux":
         return openFolderDialogLinux()
+    case "darwin":
+        return openFolderDialogMacOS()
     default:
         return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
     }
@@ -62,6 +64,33 @@ func openFolderDialogLinux() (string, error) {
     currentDir, err := os.Getwd()
     if err != nil { return "", fmt.Errorf("no GUI dialog available and cannot get current directory") }
     return currentDir, fmt.Errorf("no GUI dialog available, using current directory: %s", currentDir)
+}
+
+func openFolderDialogMacOS() (string, error) {
+    // Use AppleScript to show native macOS folder selection dialog
+    appleScript := `tell application "Finder"
+        try
+            set folderPath to choose folder with prompt "Select your Git repository folder"
+            return POSIX path of folderPath
+        on error
+            return "CANCELLED"
+        end try
+    end tell`
+    
+    cmd := exec.Command("osascript", "-e", appleScript)
+    output, err := cmd.Output()
+    if err != nil { 
+        return "", fmt.Errorf("failed to show macOS folder dialog: %s", err.Error())
+    }
+    
+    selectedPath := strings.TrimSpace(string(output))
+    if selectedPath == "CANCELLED" || selectedPath == "" { 
+        return "", nil 
+    }
+    
+    // Remove trailing slash if present
+    selectedPath = strings.TrimRight(selectedPath, "/")
+    return selectedPath, nil
 }
 
 

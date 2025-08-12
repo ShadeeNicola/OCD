@@ -70,8 +70,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$SCRIPT_DIR/shared"
 
 # Source shared functions
-source "$SHARED_DIR/utils.sh"
-source "$SHARED_DIR/maven.sh"
+
+# Source all shared functions dynamically
+for shared_script in "$SHARED_DIR"/*.sh; do
+    if [[ -f "$shared_script" ]]; then
+        source "$shared_script"
+    fi
+done
 
 # =============================================================================
 # CUSTOMIZATION-SPECIFIC FUNCTIONS
@@ -300,9 +305,29 @@ deploy_customization_service() {
     
     write_colored_output "Deploying customization service: $service_name" "yellow"
     
-    # TODO: Implement the specific patch command for customization
-    write_colored_output "Customization deployment for $service_name - TBD (patch command not implemented yet)" "yellow"
-    
+    # Step 1: Get registry and tag from settings
+    local registry_and_tag
+    registry_and_tag=$(get_registry_and_tag_from_settings)
+    if [[ $? -ne 0 ]]; then
+        return 1
+    fi
+
+    # Parse the returned values
+    local push_registry=$(echo "$registry_and_tag" | cut -d'|' -f1)
+    local current_docker_tag=$(echo "$registry_and_tag" | cut -d'|' -f2)
+
+    write_colored_output "Registry: $push_registry" "blue"
+    write_colored_output "Docker Tag: $current_docker_tag" "blue"
+
+    # Step 2: Construct the uploaded image tag for customization
+    local uploaded_image_tag="$push_registry/att/customization-jars:$current_docker_tag"
+    write_colored_output "Constructed image tag: $uploaded_image_tag" "blue"
+
+    # Step 3: Update Kubernetes microservice - target dop-backend-oso
+    if ! update_kubernetes_microservice_customization "$uploaded_image_tag" "$namespace"; then
+        return 1
+    fi
+
     return 0
 }
 
@@ -451,6 +476,7 @@ write_colored_output "═══════════════════�
 success_count=0
 total_count=${#changed_services[@]}
 
+
 for service in "${changed_services[@]}"; do
     if [[ -n "$service" ]]; then
         build_status="SKIPPED"
@@ -465,7 +491,7 @@ for service in "${changed_services[@]}"; do
         fi
         
         # Format the service name with padding
-        local formatted_service=$(printf "%-20s" "$service")
+        formatted_service=$(printf "%-20s" "$service")
         
         if [[ ("$build_status" == "SUCCESS" || "$build_status" == "SKIPPED") && ("$deploy_status" == "SUCCESS" || "$deploy_status" == "SKIPPED") ]]; then
             write_colored_output "    $formatted_service │ Build: $build_status │ Deploy: $deploy_status" "green"
@@ -475,6 +501,7 @@ for service in "${changed_services[@]}"; do
         fi
     fi
 done
+
 
 # Show metadata and docker status
 if [[ "$SKIP_BUILD" != "true" ]]; then
