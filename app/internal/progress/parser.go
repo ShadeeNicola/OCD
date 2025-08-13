@@ -83,9 +83,15 @@ func ParseProgressFromOutput(line string) *ProgressUpdate {
         service := extractServiceName(cleanLine, "Docker image build completed successfully for")
         return &ProgressUpdate{Type: "progress", Stage: "deploy", Service: service, Status: "success", Message: fmt.Sprintf("Docker image built for %s", service)}
     }
-    if strings.Contains(cleanLine, "Microservice") && strings.Contains(cleanLine, "patched with new image") {
+    if strings.Contains(cleanLine, "Microservice") && strings.Contains(cleanLine, "patched with new") && strings.Contains(cleanLine, "image") {
         service := extractServiceFromPatchLine(cleanLine)
         return &ProgressUpdate{Type: "progress", Stage: "patch", Service: service, Status: "success", Message: fmt.Sprintf("Microservice %s updated", service)}
+    }
+    if strings.Contains(cleanLine, "Updated image:") {
+        return &ProgressUpdate{Type: "progress", Stage: "deploy", Status: "success", Message: "Pushing to registry", Details: "Registry push completed successfully"}
+    }
+    if strings.Contains(cleanLine, "patched with new") && strings.Contains(cleanLine, "image") {
+        return &ProgressUpdate{Type: "progress", Stage: "deploy", Status: "success", Message: "Pushing to registry", Details: "Image successfully pushed to registry"}
     }
     if strings.Contains(cleanLine, "Error: Could not find microservice for") {
         parts := strings.Fields(cleanLine)
