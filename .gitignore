@@ -38,4 +38,4 @@ temp/
 !OCD-Tool-Linux
 
 # Allow executables folder
-executables/
+executables/.claude/settings.local.json
