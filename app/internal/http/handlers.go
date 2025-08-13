@@ -28,12 +28,14 @@ func HandleBrowse(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(progress.BrowseResponse{FolderPath: selectedPath, Success: true, Message: "Folder selected successfully"})
 }
 
-func HandleDeploy(w http.ResponseWriter, r *http.Request) {
-    if r.Method != "POST" { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
-    var req progress.DeployRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(progress.Response{Message: "Invalid request format", Success: false}); return }
-    result := executor.RunOCDScript(req.FolderPath)
-    w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(result)
+func HandleDeploy(runner *executor.Runner) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != "POST" { http.Error(w, "Method not allowed", http.StatusMethodNotAllowed); return }
+        var req progress.DeployRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(progress.Response{Message: "Invalid request format", Success: false}); return }
+        result := runner.RunOCDScript(req.FolderPath)
+        w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(result)
+    }
 }
 
 func HandleHealth(w http.ResponseWriter, r *http.Request) {

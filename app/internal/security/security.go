@@ -14,7 +14,7 @@ func ValidateFolderPath(folderPath string) error {
         return fmt.Errorf("folder path cannot be empty")
     }
 
-    dangerousChars := regexp.MustCompile(`[;&|$\x60<>]`)
+    dangerousChars := regexp.MustCompile(`[;&|$\x60<>'"]`)
     if dangerousChars.MatchString(folderPath) {
         return fmt.Errorf("folder path contains invalid characters")
     }

@@ -2,65 +2,6 @@
 # OCD - One Click Deployer for ATT Projects
 # Detects changed microservices and builds/deploys only what's needed
 
-# Default values
-NAMESPACE="dop"
-SKIP_BUILD=false
-SKIP_DEPLOY=false
-FORCE=false
-CONFIRM=false
-VERBOSE=true
-
-# Check for environment variable override
-if [[ "$OCD_VERBOSE" == "true" ]]; then
-    VERBOSE=true
-fi
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -n|--namespace)
-            NAMESPACE="$2"
-            shift 2
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --skip-deploy)
-            SKIP_DEPLOY=true
-            shift
-            ;;
-        --force)
-            FORCE=true
-            shift
-            ;;
-        --confirm)
-            CONFIRM=true
-            shift
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        -h|--help)
-            echo "Usage: $0 [OPTIONS]"
-            echo "Options:"
-            echo "  -n, --namespace NS       Kubernetes namespace (default: dop)"
-            echo "  --skip-build            Skip build phase"
-            echo "  --skip-deploy           Skip deploy phase"
-            echo "  --force                 Run even if no changes detected"
-            echo "  --confirm               Prompt for confirmation before deployment"
-            echo "  -v, --verbose           Show detailed command output"
-            echo "  -h, --help              Show this help"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
 # =============================================================================
 # LOAD SHARED FUNCTIONS
 # =============================================================================
@@ -75,6 +16,9 @@ for shared_script in "$SHARED_DIR"/*.sh; do
         source "$shared_script"
     fi
 done
+
+# Parse command line arguments using shared function
+parse_common_arguments "$0" "$@"
 
 # =============================================================================
 # ATT-SPECIFIC FUNCTIONS
@@ -205,46 +149,14 @@ build_microservice() {
     local target_wsl_path=$(realpath "$build_dir")
     local target_windows_path=$(convert_to_windows_path "$target_wsl_path")
 
-    # Choose the right executable based on environment
-    local ps_executable=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        ps_executable="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    else
-        ps_executable="/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    fi
-
-    # Build PowerShell command - use verbose output if VERBOSE is true
-    local ps_command=""
-    if [[ "$VERBOSE" == "true" ]]; then
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    else
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH' -q"
-    fi
-
+    # Use shared PowerShell utilities
+    local ps_executable=$(get_powershell_executable)
+    local ps_command=$(build_maven_command "$target_windows_path")
+    
     log_command "$ps_command"
-
-    if [[ "$VERBOSE" == "true" ]]; then
-        # Show full output in verbose mode
-        if "$ps_executable" -Command "$ps_command"; then
-            write_colored_output "Build completed successfully for $microservice_name" "green"
-            return 0
-        else
-            write_colored_output "Maven build failed for $microservice_name" "red"
-            return 1
-        fi
-    else
-        # Hide output in non-verbose mode
-        if "$ps_executable" -Command "$ps_command" > /dev/null 2>&1; then
-            write_colored_output "Build completed successfully for $microservice_name" "green"
-            return 0
-        else
-            write_colored_output "Maven build failed for $microservice_name" "red"
-            # Run again without -q to show error details
-            write_colored_output "Error details:" "red"
-            "$ps_executable" -Command "Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'" 2>&1 | tail -20
-            return 1
-        fi
-    fi
+    
+    # Execute with fallback handling
+    execute_maven_with_fallback "$ps_executable" "$ps_command" "$microservice_name"
 }
 
 get_docker_artifact_name() {
@@ -309,69 +221,21 @@ build_docker_image() {
     local docker_wsl_path=$(realpath "$docker_build_dir")
     local docker_windows_path=$(convert_to_windows_path "$docker_wsl_path")
 
-    # Choose the right executable based on environment
-    local ps_executable=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        ps_executable="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    else
-        ps_executable="/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    fi
-
-    # Build PowerShell command for Docker build - use verbose output if VERBOSE is true
-    local docker_ps_command=""
-    if [[ "$VERBOSE" == "true" ]]; then
-        docker_ps_command="Set-Location '$docker_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    else
-        docker_ps_command="Set-Location '$docker_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH' -q"
-    fi
-
+    # Use shared PowerShell utilities for Docker build
+    local ps_executable=$(get_powershell_executable)
+    local docker_ps_command=$(build_maven_command "$docker_windows_path")
+    
     log_command "$docker_ps_command"
-
-    if [[ "$VERBOSE" == "true" ]]; then
-        # Show full output in verbose mode
-        if ! "$ps_executable" -Command "$docker_ps_command"; then
-            write_colored_output "Docker image build failed for $microservice_name" "red"
-            return 1
-        fi
-    else
-        # Hide output in non-verbose mode
-        if ! "$ps_executable" -Command "$docker_ps_command" > /dev/null 2>&1; then
-            write_colored_output "Docker image build failed for $microservice_name" "red"
-            # Run again without -q to show error details
-            write_colored_output "Error details:" "red"
-            "$ps_executable" -Command "Set-Location '$docker_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'" 2>&1 | tail -20
-            return 1
-        fi
+    
+    # Execute with fallback handling (negated for docker build failure check)
+    if ! execute_maven_with_fallback "$ps_executable" "$docker_ps_command" "$microservice_name (Docker)"; then
+        return 1
     fi
 
     write_colored_output "Docker image build completed successfully for $microservice_name" "green"
     return 0
 }
 
-get_registry_and_tag_from_settings() {
-    local settings_file_path=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
-    else
-        settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
-    fi
-
-    local push_registry=$(grep -o '<docker\.push\.registry>[^<]*</docker\.push\.registry>' "$settings_file_path" | sed 's/<[^>]*>//g')
-    local current_docker_tag=$(grep -o '<docker\.tag3>[^<]*</docker\.tag3>' "$settings_file_path" | sed 's/<[^>]*>//g')
-
-    if [[ -z "$push_registry" ]]; then
-        write_colored_output "Error: Could not find docker.push.registry in Maven settings" "red"
-        return 1
-    fi
-
-    if [[ -z "$current_docker_tag" ]]; then
-        write_colored_output "Error: Could not find docker.tag3 in Maven settings" "red"
-        return 1
-    fi
-
-    echo "$push_registry|$current_docker_tag"
-    return 0
-}
 
 construct_uploaded_image_tag() {
     local microservice_name="$1"

@@ -8,16 +8,22 @@ import (
     "app/internal/progress"
 )
 
-var commandExecutor *CommandExecutor
-
-func InitExecutor(ce *CommandExecutor) { commandExecutor = ce }
-
-// SSE-based execution for deployment streaming
-func RunOCDScriptWithSSE(ctx context.Context, folderPath string, writer chan []byte) {
-    commandExecutor.ExecuteWithSSE(ctx, folderPath, writer)
+type Runner struct {
+    executor *CommandExecutor
 }
 
-func RunOCDScript(folderPath string) progress.Response { return commandExecutor.Execute(folderPath) }
+func NewRunner(ce *CommandExecutor) *Runner {
+    return &Runner{executor: ce}
+}
+
+// SSE-based execution for deployment streaming
+func (r *Runner) RunOCDScriptWithSSE(ctx context.Context, folderPath string, writer chan []byte) {
+    r.executor.ExecuteWithSSE(ctx, folderPath, writer)
+}
+
+func (r *Runner) RunOCDScript(folderPath string) progress.Response { 
+    return r.executor.Execute(folderPath) 
+}
 
 func detectProjectType(folderPath string) string { if strings.Contains(folderPath, "customization") { return "customization" }; return "att" }
 

@@ -33,7 +33,7 @@ func generateSessionID() string {
 }
 
 // HandleDeployStart initiates a new deployment session
-func HandleDeployStart(cfg *config.Config) http.HandlerFunc {
+func HandleDeployStart(cfg *config.Config, runner *executor.Runner) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         if r.Method != "POST" {
             http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -69,7 +69,7 @@ func HandleDeployStart(cfg *config.Config) http.HandlerFunc {
         sessionsMux.Unlock()
 
         // Start deployment in background
-        go func() {
+        go func(r *executor.Runner) {
             defer func() {
                 close(session.Done)
                 sessionsMux.Lock()
@@ -78,8 +78,8 @@ func HandleDeployStart(cfg *config.Config) http.HandlerFunc {
                 close(session.Writer)
             }()
 
-            executor.RunOCDScriptWithSSE(ctx, req.FolderPath, session.Writer)
-        }()
+            r.RunOCDScriptWithSSE(ctx, req.FolderPath, session.Writer)
+        }(runner)
 
         // Return session ID
         response := map[string]string{"sessionId": sessionID}

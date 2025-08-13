@@ -2,65 +2,6 @@
 # OCD - One Click Deployer for Customization Projects
 # Detects changed services in app/backend and builds/deploys them
 
-# Default values
-NAMESPACE="dop"
-SKIP_BUILD=false
-SKIP_DEPLOY=false
-FORCE=false
-CONFIRM=false
-VERBOSE=true
-
-# Check for environment variable override
-if [[ "$OCD_VERBOSE" == "true" ]]; then
-    VERBOSE=true
-fi
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -n|--namespace)
-            NAMESPACE="$2"
-            shift 2
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --skip-deploy)
-            SKIP_DEPLOY=true
-            shift
-            ;;
-        --force)
-            FORCE=true
-            shift
-            ;;
-        --confirm)
-            CONFIRM=true
-            shift
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        -h|--help)
-            echo "Usage: $0 [OPTIONS]"
-            echo "Options:"
-            echo "  -n, --namespace NS       Kubernetes namespace (default: dop)"
-            echo "  --skip-build            Skip build phase"
-            echo "  --skip-deploy           Skip deploy phase"
-            echo "  --force                 Run even if no changes detected"
-            echo "  --confirm               Prompt for confirmation before deployment"
-            echo "  -v, --verbose           Show detailed command output"
-            echo "  -h, --help              Show this help"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
 # =============================================================================
 # LOAD SHARED FUNCTIONS
 # =============================================================================
@@ -69,14 +10,15 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_DIR="$SCRIPT_DIR/shared"
 
-# Source shared functions
-
 # Source all shared functions dynamically
 for shared_script in "$SHARED_DIR"/*.sh; do
     if [[ -f "$shared_script" ]]; then
         source "$shared_script"
     fi
 done
+
+# Parse command line arguments using shared function
+parse_common_arguments "$0" "$@"
 
 # =============================================================================
 # CUSTOMIZATION-SPECIFIC FUNCTIONS
@@ -121,17 +63,20 @@ get_changed_customization_services() {
     printf '%s\n' "${detected_services[@]}"
 }
 
-build_customization_service() {
+# Generic Maven build function for customization components
+build_customization_component() {
+    # Set proper encoding for Maven builds
     export LANG=C.UTF-8
     export LC_ALL=C.UTF-8
 
-    local service_name="$1"
-    local build_dir="app/backend/$service_name"
+    local component_name="$1"
+    local build_dir="$2"
+    local display_message="$3"
     
-    write_colored_output "Building customization service: $service_name" "blue"
+    write_colored_output "$display_message" "blue"
     
     if [[ ! -d "$build_dir" ]]; then
-        write_colored_output "Error: Could not find directory for $service_name" "red"
+        write_colored_output "Error: Directory $build_dir not found" "red"
         return 1
     fi
     
@@ -139,164 +84,28 @@ build_customization_service() {
     local target_wsl_path=$(realpath "$build_dir")
     local target_windows_path=$(convert_to_windows_path "$target_wsl_path")
     
-    # Choose the right executable based on environment
-    local ps_executable=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        ps_executable="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    else
-        ps_executable="/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    fi
-    
-    # Build PowerShell command - use verbose output if VERBOSE is true
-    local ps_command=""
-    if [[ "$VERBOSE" == "true" ]]; then
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    else
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH' -q"
-    fi
+    # Use shared PowerShell utilities
+    local ps_executable=$(get_powershell_executable)
+    local ps_command=$(build_maven_command "$target_windows_path")
     
     log_command "$ps_command"
     
-    if [[ "$VERBOSE" == "true" ]]; then
-        # Show full output in verbose mode
-        if "$ps_executable" -Command "$ps_command"; then
-            write_colored_output "Build completed successfully for $service_name" "green"
-            return 0
-        else
-            write_colored_output "Maven build failed for $service_name" "red"
-            return 1
-        fi
-    else
-        # Hide output in non-verbose mode
-        if "$ps_executable" -Command "$ps_command" > /dev/null 2>&1; then
-            write_colored_output "Build completed successfully for $service_name" "green"
-            return 0
-        else
-            write_colored_output "Maven build failed for $service_name" "red"
-            # Run again without -q to show error details
-            write_colored_output "Error details:" "red"
-            "$ps_executable" -Command "Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'" 2>&1 | tail -20
-            return 1
-        fi
-    fi
+    # Execute with fallback handling
+    execute_maven_with_fallback "$ps_executable" "$ps_command" "$component_name"
+}
+
+# Wrapper functions for backward compatibility
+build_customization_service() {
+    local service_name="$1"
+    build_customization_component "$service_name" "app/backend/$service_name" "Building customization service: $service_name"
 }
 
 build_customization_metadata() {
-    export LANG=C.UTF-8
-    export LC_ALL=C.UTF-8
-
-    write_colored_output "Building customization metadata..." "blue"
-    
-    local build_dir="app/metadata"
-    
-    if [[ ! -d "$build_dir" ]]; then
-        write_colored_output "Error: Metadata directory $build_dir not found" "red"
-        return 1
-    fi
-    
-    # Get absolute path and convert to Windows path
-    local target_wsl_path=$(realpath "$build_dir")
-    local target_windows_path=$(convert_to_windows_path "$target_wsl_path")
-    
-    # Choose the right executable based on environment
-    local ps_executable=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        ps_executable="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    else
-        ps_executable="/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    fi
-    
-    # Build PowerShell command - use verbose output if VERBOSE is true
-    local ps_command=""
-    if [[ "$VERBOSE" == "true" ]]; then
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    else
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH' -q"
-    fi
-    
-    log_command "$ps_command"
-    
-    if [[ "$VERBOSE" == "true" ]]; then
-        # Show full output in verbose mode
-        if "$ps_executable" -Command "$ps_command"; then
-            write_colored_output "Metadata build completed successfully" "green"
-            return 0
-        else
-            write_colored_output "Metadata build failed" "red"
-            return 1
-        fi
-    else
-        # Hide output in non-verbose mode
-        if "$ps_executable" -Command "$ps_command" > /dev/null 2>&1; then
-            write_colored_output "Metadata build completed successfully" "green"
-            return 0
-        else
-            write_colored_output "Metadata build failed" "red"
-            # Run again without -q to show error details
-            write_colored_output "Error details:" "red"
-            "$ps_executable" -Command "Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'" 2>&1 | tail -20
-            return 1
-        fi
-    fi
+    build_customization_component "metadata" "app/metadata" "Building customization metadata..."
 }
 
 build_customization_docker() {
-    export LANG=C.UTF-8
-    export LC_ALL=C.UTF-8
-
-    write_colored_output "Building customization Docker images..." "blue"
-    
-    local build_dir="dockers/customization-jars"
-    
-    if [[ ! -d "$build_dir" ]]; then
-        write_colored_output "Error: Docker directory $build_dir not found" "red"
-        return 1
-    fi
-    
-    # Get absolute path and convert to Windows path
-    local target_wsl_path=$(realpath "$build_dir")
-    local target_windows_path=$(convert_to_windows_path "$target_wsl_path")
-    
-    # Choose the right executable based on environment
-    local ps_executable=""
-    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
-        ps_executable="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    else
-        ps_executable="/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
-    fi
-    
-    # Build PowerShell command - use verbose output if VERBOSE is true
-    local ps_command=""
-    if [[ "$VERBOSE" == "true" ]]; then
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    else
-        ps_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH' -q"
-    fi
-    
-    log_command "$ps_command"
-    
-    if [[ "$VERBOSE" == "true" ]]; then
-        # Show full output in verbose mode
-        if "$ps_executable" -Command "$ps_command"; then
-            write_colored_output "Docker build completed successfully" "green"
-            return 0
-        else
-            write_colored_output "Docker build failed" "red"
-            return 1
-        fi
-    else
-        # Hide output in non-verbose mode
-        if "$ps_executable" -Command "$ps_command" > /dev/null 2>&1; then
-            write_colored_output "Docker build completed successfully" "green"
-            return 0
-        else
-            write_colored_output "Docker build failed" "red"
-            # Run again without -q to show error details
-            write_colored_output "Error details:" "red"
-            "$ps_executable" -Command "Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'" 2>&1 | tail -20
-            return 1
-        fi
-    fi
+    build_customization_component "Docker" "dockers/customization-jars" "Building customization Docker images..."
 }
 
 deploy_customization_service() {

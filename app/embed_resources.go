@@ -10,11 +10,11 @@ import (
 var rootAssets embed.FS
 
 // WebFS provides the embedded filesystem for serving the web UI
-func WebFS() fs.FS {
+func WebFS() (fs.FS, error) {
     webFS, err := fs.Sub(rootAssets, "web")
     if err != nil {
-        panic(err)
+        return nil, err
     }
-    return webFS
+    return webFS, nil
 }
 

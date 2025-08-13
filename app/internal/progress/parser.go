@@ -27,11 +27,43 @@ func ParseProgressFromOutput(line string) *ProgressUpdate {
     }
     if strings.Contains(cleanLine, "Building microservice:") {
         service := extractServiceName(cleanLine, "Building microservice:")
+        service = strings.ToLower(service) // Normalize to lowercase
         return &ProgressUpdate{Type: "progress", Stage: "build", Service: service, Status: "running", Message: fmt.Sprintf("Building %s", service)}
+    }
+    // Customization script patterns
+    if strings.Contains(cleanLine, "Building customization service:") {
+        service := extractServiceName(cleanLine, "Building customization service:")
+        service = strings.ToLower(service) // Normalize to lowercase
+        return &ProgressUpdate{Type: "progress", Stage: "build", Service: service, Status: "running", Message: fmt.Sprintf("Building %s", service)}
+    }
+    if strings.Contains(cleanLine, "Building customization metadata") {
+        return &ProgressUpdate{Type: "progress", Stage: "build", Service: "metadata", Status: "running", Message: "Building metadata"}
+    }
+    if strings.Contains(cleanLine, "Building customization Docker images") {
+        return &ProgressUpdate{Type: "progress", Stage: "build", Service: "docker", Status: "running", Message: "Building Docker images"}
     }
     if strings.Contains(cleanLine, "Build completed successfully for") {
         service := extractServiceName(cleanLine, "Build completed successfully for")
+        service = strings.ToLower(service) // Normalize to lowercase
         return &ProgressUpdate{Type: "progress", Stage: "build", Service: service, Status: "success", Message: fmt.Sprintf("Build completed for %s", service)}
+    }
+    // New shared utility pattern: "{service} build completed successfully"
+    if strings.Contains(cleanLine, "build completed successfully") {
+        // Extract service name before "build completed successfully"
+        parts := strings.Split(cleanLine, " build completed successfully")
+        if len(parts) > 0 {
+            service := strings.TrimSpace(parts[0])
+            // Remove any leading color codes or prefixes
+            if idx := strings.LastIndex(service, " "); idx != -1 {
+                service = service[idx+1:]
+            }
+            // Normalize service names to match the running state
+            service = strings.ToLower(service)
+            if service == "docker" {
+                service = "docker" // Keep consistent with the "docker" used in running state
+            }
+            return &ProgressUpdate{Type: "progress", Stage: "build", Service: service, Status: "success", Message: fmt.Sprintf("Build completed for %s", service)}
+        }
     }
     if strings.Contains(cleanLine, "BUILD FAILURE") || strings.Contains(cleanLine, "Build failed for") || strings.Contains(cleanLine, "Failed to execute goal") || strings.Contains(cleanLine, "Compilation failure") {
         service := ""
@@ -77,6 +109,12 @@ func ParseProgressFromOutput(line string) *ProgressUpdate {
 
     if strings.Contains(cleanLine, "Deploying microservice:") {
         service := extractServiceName(cleanLine, "Deploying microservice:")
+        service = strings.ToLower(service) // Normalize to lowercase  
+        return &ProgressUpdate{Type: "progress", Stage: "deploy", Service: service, Status: "running", Message: fmt.Sprintf("Deploying %s", service)}
+    }
+    if strings.Contains(cleanLine, "Deploying customization service:") {
+        service := extractServiceName(cleanLine, "Deploying customization service:")
+        service = strings.ToLower(service) // Normalize to lowercase
         return &ProgressUpdate{Type: "progress", Stage: "deploy", Service: service, Status: "running", Message: fmt.Sprintf("Deploying %s", service)}
     }
     if strings.Contains(cleanLine, "Docker image build completed successfully for") {
@@ -85,13 +123,11 @@ func ParseProgressFromOutput(line string) *ProgressUpdate {
     }
     if strings.Contains(cleanLine, "Microservice") && strings.Contains(cleanLine, "patched with new") && strings.Contains(cleanLine, "image") {
         service := extractServiceFromPatchLine(cleanLine)
+        // This indicates both patch success and overall deploy stage success
         return &ProgressUpdate{Type: "progress", Stage: "patch", Service: service, Status: "success", Message: fmt.Sprintf("Microservice %s updated", service)}
     }
     if strings.Contains(cleanLine, "Updated image:") {
-        return &ProgressUpdate{Type: "progress", Stage: "deploy", Status: "success", Message: "Pushing to registry", Details: "Registry push completed successfully"}
-    }
-    if strings.Contains(cleanLine, "patched with new") && strings.Contains(cleanLine, "image") {
-        return &ProgressUpdate{Type: "progress", Stage: "deploy", Status: "success", Message: "Pushing to registry", Details: "Image successfully pushed to registry"}
+        return &ProgressUpdate{Type: "progress", Stage: "deploy", Status: "success", Message: "Kubernetes Deployment"}
     }
     if strings.Contains(cleanLine, "Error: Could not find microservice for") {
         parts := strings.Fields(cleanLine)

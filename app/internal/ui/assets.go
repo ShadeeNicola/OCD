@@ -6,6 +6,6 @@ import (
 )
 
 // GetWebFS returns the embedded web filesystem from the root embed
-func GetWebFS() fs.FS { return ocdgui.WebFS() }
+func GetWebFS() (fs.FS, error) { return ocdgui.WebFS() }
 
 

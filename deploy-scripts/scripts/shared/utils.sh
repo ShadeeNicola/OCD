@@ -381,4 +381,69 @@ auto_update_docker_settings() {
     write_colored_output "Maven Settings XML Updated (IP: $corp_ip, Tag: $docker_tag)" "green"
 }
 
+# =============================================================================
+# POWERSHELL UTILITIES
+# =============================================================================
+
+# Get the appropriate PowerShell executable based on environment
+get_powershell_executable() {
+    if [[ "$RUNTIME_ENV" == "WSL" ]]; then
+        echo "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    else
+        echo "/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    fi
+}
+
+# Build Maven command for PowerShell execution with verbose/quiet support
+build_maven_command() {
+    local target_windows_path="$1"
+    local additional_flags="${2:-}"
+    
+    local base_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
+    
+    if [[ -n "$additional_flags" ]]; then
+        base_command="$base_command $additional_flags"
+    fi
+    
+    if [[ "$VERBOSE" == "true" ]]; then
+        echo "$base_command"
+    else
+        echo "$base_command -q"
+    fi
+}
+
+# Execute Maven command with PowerShell, with verbose/quiet fallback
+execute_maven_with_fallback() {
+    local ps_executable="$1"
+    local ps_command="$2"
+    local service_name="$3"
+    
+    # Set proper encoding for Maven builds
+    export LANG=C.UTF-8
+    export LC_ALL=C.UTF-8
+    
+    write_colored_output "Building $service_name..." "blue"
+    
+    if [[ "$VERBOSE" == "true" ]]; then
+        "$ps_executable" -Command "$ps_command"
+        local exit_code=$?
+    else
+        local output=$("$ps_executable" -Command "$ps_command" 2>&1)
+        local exit_code=$?
+        if [[ $exit_code -ne 0 ]]; then
+            write_colored_output "Build failed with quiet mode. Retrying with verbose output..." "yellow"
+            "$ps_executable" -Command "${ps_command% -q}"
+            exit_code=$?
+        fi
+    fi
+    
+    if [[ $exit_code -eq 0 ]]; then
+        write_colored_output "$service_name build completed successfully" "green"
+        return 0
+    else
+        write_colored_output "Error: $service_name build failed" "red"
+        return 1
+    fi
+}
+
 

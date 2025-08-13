@@ -9,7 +9,7 @@ OCD (One Click Deployer) is a GUI-based deployment tool that simplifies the depl
 ### Technology Stack
 - **Backend**: Go (Golang) 1.24.5
 - **Frontend**: Vanilla JavaScript (ES6 modules)
-- **Communication**: WebSocket for real-time updates
+- **Communication**: Server-Sent Events (SSE) for real-time deployment progress
 - **Deployment**: Shell scripts (`OCD.sh`, `OCD-customization.sh`) embedded via `deploy-scripts` module
 - **Build & Packaging**: GitLab CI on tags builds cross-platform binaries and publishes Release assets; local `build/build-all-executables.sh` for contributors
 - **Versioning**: Version injected at build from Git tag via ldflags; exposed by `GET /api/health`
@@ -58,9 +58,11 @@ OCD/
 │   └── scripts/
 │       ├── OCD.sh
 │       ├── OCD-customization.sh
-│       └── shared/
-│           ├── utils.sh
-│           └── maven.sh
+│       └── shared/                     # Shared utilities (refactored)
+│           ├── utils.sh               # Common utilities & PowerShell functions
+│           ├── maven.sh               # Maven build functions
+│           ├── kubernetes.sh          # Kubernetes deployment functions  
+│           └── arguments.sh           # Common argument parsing
 ├── build/                         # Build utilities (root-level)
 │   └── build-all-executables.sh   # Cross-platform build (outputs to repo dist/)
 ├── README.md                      # Project documentation
@@ -83,12 +85,14 @@ OCD/
 #### 2. HTTP Handlers (`internal/http/`)
 - **Endpoints**:
   - `GET /api/browse` - File dialog for folder selection
-  - `POST /api/deploy` - Traditional deployment endpoint
-  - `GET /api/health` - Health check endpoint
-  - `GET /ws/deploy` - WebSocket deployment endpoint
+  - `POST /api/deploy` - Traditional deployment endpoint (synchronous)
+  - `GET /api/health` - Health check endpoint with version info
+  - `POST /api/deploy/start` - Start SSE deployment session
+  - `GET /api/deploy/stream/{sessionId}` - SSE stream for real-time progress
+  - `POST /api/deploy/cancel/{sessionId}` - Cancel deployment session
 
-#### 3. WebSocket Communication (`internal/http/ws.go`)
-- **Purpose**: Real-time communication for deployment progress
+#### 3. SSE Communication (`internal/http/sse.go`)
+- **Purpose**: Server-Sent Events for real-time deployment progress streaming
 - **Features**:
   - Origin validation for security
   - Thread-safe message writing
@@ -96,21 +100,21 @@ OCD/
   - Error handling
 
 #### 4. Deployment Runner (`internal/executor/runner.go`)
-- **Purpose**: Core deployment orchestration
+- **Purpose**: Thread-safe deployment orchestration with dependency injection
+- **Architecture**: Uses `Runner` struct with injected `CommandExecutor` (no global variables)
 - **Key Functions**:
-  - Cross-platform command building (Windows/WSL, Linux, macOS)
-  - Temporary script file creation
-  - Real-time output streaming
-  - Progress parsing and WebSocket communication
-  - Path conversion for WSL
+  - `RunOCDScript()` - Synchronous deployment execution
+  - `RunOCDScriptWithSSE()` - Real-time streaming deployment execution
+  - Thread-safe message streaming via channels
 
 #### 5. Command Executor (`internal/executor/command_executor.go`)
-- **Purpose**: Secure command execution and streaming
+- **Purpose**: Secure command execution and cross-platform script management
 - **Features**:
-  - Path validation and sanitization
+  - Enhanced path validation and sanitization (blocks injection characters)
   - Command timeout handling (30 minutes default)
-  - Real-time stdout/stderr streaming
-  - Error handling and logging
+  - Real-time stdout/stderr streaming via SSE
+  - Proper shell escaping using `strconv.Quote()`
+  - Cross-platform script embedding and temporary file management
 
 #### 6. Configuration (`internal/config/config.go`)
 - **Configuration Options**:

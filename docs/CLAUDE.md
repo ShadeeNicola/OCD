@@ -22,6 +22,19 @@ chmod +x build/build-all-executables.sh
 DIST_DIR=dist ./build/build-all-executables.sh
 ```
 
+## Recent Architectural Improvements (2025-08-13)
+
+### Security Enhancements
+- **Path Validation**: Enhanced to block command injection characters (`; & | $ \` < > ' "`)
+- **Shell Escaping**: Proper escaping using `strconv.Quote()` instead of basic string formatting
+- **Panic Elimination**: Replaced `panic()` calls with graceful error handling
+
+### Architecture Improvements  
+- **Dependency Injection**: Eliminated global variables, implemented proper DI with `Runner` struct
+- **Thread Safety**: Removed race conditions and improved concurrent access patterns
+- **Simplified Command Execution**: Reduced 30+ lines of over-engineered code to 3 lines
+- **SSE Communication**: Migrated from WebSockets to Server-Sent Events for better browser compatibility
+
 ## Project Architecture
 
 ### Module Structure
@@ -37,10 +50,11 @@ DIST_DIR=dist ./build/build-all-executables.sh
 - **Embedded scripts**: `deploy-scripts/scripts/` - Shell scripts for ATT and customization projects
 
 ### Technology Stack
-- **Backend**: Go 1.24.5 with Gorilla WebSockets
-- **Frontend**: Vanilla JavaScript (ES6 modules), no frameworks
-- **Communication**: WebSocket for real-time deployment progress
+- **Backend**: Go 1.24.5 with dependency injection architecture
+- **Frontend**: Vanilla JavaScript (ES6 modules), no frameworks  
+- **Communication**: Server-Sent Events (SSE) for real-time deployment progress
 - **Cross-platform**: Windows (WSL), Linux, macOS support
+- **Security**: Enhanced path validation and shell escaping
 
 ### Project Type Detection
 The system automatically detects project types:
@@ -53,8 +67,9 @@ Environment variables:
 - `OCD_WSL_USER`: WSL username for Windows (default: k8s)
 - `OCD_COMMAND_TIMEOUT`: Command timeout in seconds (default: 1800)
 
-### WebSocket Communication
-- **Real-time progress updates** via `/ws/deploy`
+### SSE Communication
+- **Real-time progress updates** via `/api/deploy/stream/{sessionId}`
+- **Session management**: `/api/deploy/start` creates session, `/api/deploy/cancel/{id}` cancels
 - **Message types**: "output", "progress", "complete"
 - **Progress stages**: prerequisites, settings, build, deploy, patch
 
@@ -62,6 +77,26 @@ Environment variables:
 - **Windows**: Requires WSL, executes via `wsl --user k8s bash -l -c`
 - **Linux/macOS**: Direct bash execution with login shell
 - **Path conversion**: Windows paths automatically converted to WSL paths
+
+### Deployment Scripts Architecture (Refactored)
+The deployment scripts have been refactored for better maintainability:
+
+#### Shared Modules (`deploy-scripts/scripts/shared/`)
+- **`arguments.sh`**: Common command-line argument parsing for both scripts
+- **`utils.sh`**: Shared utilities including PowerShell execution helpers and environment detection
+- **`maven.sh`**: Maven build functions and settings management
+- **`kubernetes.sh`**: Kubernetes deployment and microservice management
+
+#### Script Structure
+- **`OCD.sh`** (489 lines, was 625): ATT project deployment
+- **`OCD-customization.sh`** (333 lines, was 524): Customization project deployment
+- **Total reduction**: 328 lines (28.5% smaller), improved maintainability
+
+#### Key Improvements
+- **Consolidated build functions**: Eliminated 3 duplicate functions in customization script
+- **Shared PowerShell utilities**: Common pattern for cross-platform Maven execution
+- **Unified argument parsing**: Single source of truth for command-line options
+- **Enhanced maintainability**: Changes to shared logic only need to be made once
 
 ## Development Principles
 

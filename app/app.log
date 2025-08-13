@@ -1,0 +1,13 @@
+[21:42:43.069] Application starting...
+[21:42:43.070] Loading embedded filesystem...
+[21:42:43.070] Filesystem loaded in 1.00075ms
+[21:42:43.071] Loading configuration...
+[21:42:43.071] Configuration loaded in 1.828072ms
+[21:42:43.071] Setting up routes...
+INFO: 2025/08/13 21:42:43 logger.go:22: Routes configured successfully
+[21:42:43.072] Server ready to start in 2.973407ms
+Server starting on http://localhost:2111
+Operating System: linux
+WSL User: k8s
+Could not open browser automatically. Please go to: http://localhost:2111
+2025/08/13 21:42:44 listen tcp 127.0.0.1:2111: bind: address already in use

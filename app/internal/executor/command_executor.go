@@ -8,6 +8,7 @@ import (
     "os/exec"
     "path/filepath"
     "runtime"
+    "strconv"
     "strings"
     "time"
 
@@ -201,11 +202,16 @@ func (ce *CommandExecutor) buildCommand(safeFolderPath string) (*exec.Cmd, error
 }
 
 func buildWSLDirectCommand(scriptPath, sharedDirPath, folderPath string) string {
-    return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on 2>/dev/null || true && cd '%s' && bash '%s'`, folderPath, scriptPath)
+    return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on 2>/dev/null || true && cd %s && bash %s`, shellEscape(folderPath), shellEscape(scriptPath))
 }
 
 func buildDirectCommand(scriptPath, sharedDirPath, folderPath string) string {
-    return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on 2>/dev/null || true && cd '%s' && bash '%s'`, folderPath, scriptPath)
+    return fmt.Sprintf(`export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.showDateTime=true -Dorg.slf4j.simpleLogger.dateTimeFormat=HH:mm:ss" && export OCD_VERBOSE=true && proxy on 2>/dev/null || true && cd %s && bash %s`, shellEscape(folderPath), shellEscape(scriptPath))
+}
+
+// shellEscape safely escapes a string for use in shell commands
+func shellEscape(s string) string {
+    return strconv.Quote(s)
 }
 
 func convertToWSLPath(windowsPath string) string {
