@@ -720,14 +720,19 @@ input[type="text"]::placeholder {
 
 .new-progress-status.status-success::after {
     content: "✓" !important;
-    font-size: 0.9rem !important;
+    font-size: 0.8rem !important;
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
-    display: block !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
     font-family: 'Manrope', sans-serif !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
 }
 
@@ -742,14 +747,19 @@ input[type="text"]::placeholder {
 
 .new-progress-status.status-error::after {
     content: "✕" !important;
-    font-size: 0.9rem !important;
+    font-size: 0.8rem !important;
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) !important;
-    display: block !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
     font-family: 'Manrope', sans-serif !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
 }
 
