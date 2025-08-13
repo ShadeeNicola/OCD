@@ -218,7 +218,7 @@ body {
 
 @keyframes gradientShift {
     0%, 100% { filter: hue-rotate(0deg); }
-    50% { filter: hue-rotate(30deg); }
+    50% { filter: hue-rotate(-10deg); }
 }
 
 .hero-subtitle {
