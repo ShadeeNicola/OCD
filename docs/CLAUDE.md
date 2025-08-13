@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Rules
+- no hardcoding unless nessecary. prefer dynamic, generic approach.
+- do not be a "yes man". no sugar coating. be creative and challenge me when you see fit.
+- no temp solutions or WA or manual fixes. fix the proper way all the time.
+- "docs" folder files needs to always be updated.
+
 ## Build Commands
 
 ### Development Build (Single Platform)
