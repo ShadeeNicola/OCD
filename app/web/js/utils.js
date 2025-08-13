@@ -51,10 +51,6 @@ export function normalizePath(path) {
     return path.replace(/\\/g, '/');
 }
 
-export function createWebSocketUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}/ws/deploy`;
-}
 
 export function generateTimestamp() {
     return new Date().toISOString().replace(/[:.]/g, '-');

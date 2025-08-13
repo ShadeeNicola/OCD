@@ -1,5 +1,5 @@
 import { CONFIG } from './constants.js';
-import { createWebSocketUrl, generateTimestamp, downloadTextFile, ansiToHtml } from './utils.js';
+import { generateTimestamp, downloadTextFile, ansiToHtml } from './utils.js';
 import { HistoryManager } from './history-manager.js';
 import { ProgressManager } from './progress-manager.js';
 
@@ -43,7 +43,8 @@ class OCDApp {
 
     initializeState() {
         this.currentDeploymentOutput = '';
-        this.websocket = null;
+        this.eventSource = null;
+        this.currentSessionId = null;
         this.lastDeploymentStatus = null;
     }
 
@@ -165,7 +166,7 @@ class OCDApp {
         }
     }
 
-    handleDeployButton() {
+    async handleDeployButton() {
         // If deploying, clicking acts as cancel
         if (this.deployBtn.dataset.state === 'deploying') {
             this.handleCancelClick();
@@ -194,40 +195,63 @@ class OCDApp {
 
         const folderPath = this.folderInput.value.trim();
 
-        // Debug the WebSocket URL
-        const wsUrl = createWebSocketUrl();
-        console.log('WebSocket URL:', wsUrl);
-
-        // Create WebSocket connection
-        this.websocket = new WebSocket(wsUrl);
-
-        this.websocket.onopen = () => {
-            console.log('WebSocket connected');
-            // Send the folder path
-            this.websocket.send(JSON.stringify({ folderPath: folderPath }));
-        };
-
-        this.websocket.onmessage = (event) => this.handleWebSocketMessage(event);
-        this.websocket.onclose = () => this.handleWebSocketClose();
-        this.websocket.onerror = (error) => this.handleWebSocketError(error);
-    }
-
-    handleCancelClick() {
         try {
-            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                this.websocket.send(JSON.stringify({ type: 'cancel' }));
+            // Start deployment session
+            const response = await fetch('/api/deploy/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderPath: folderPath })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-        } catch (_) {}
-        // UI reflects stopping state; actual completion comes from server 'complete'
-        this.showStatus('Aborting deployment...', 'warning');
+
+            const data = await response.json();
+            this.currentSessionId = data.sessionId;
+            console.log('Deployment session started:', this.currentSessionId);
+
+            // Connect to SSE stream
+            this.eventSource = new EventSource(`/api/deploy/stream/${this.currentSessionId}`);
+            this.eventSource.onmessage = (event) => this.handleSSEMessage(event);
+            this.eventSource.onerror = (error) => this.handleSSEError(error);
+            
+        } catch (error) {
+            console.error('Failed to start deployment:', error);
+            this.showStatus(`Failed to start deployment: ${error.message}`, 'error');
+            this.resetDeployButton();
+        }
     }
 
-    handleWebSocketMessage(event) {
+    async handleCancelClick() {
+        if (!this.currentSessionId) return;
+        
+        try {
+            const response = await fetch(`/api/deploy/cancel/${this.currentSessionId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                this.showStatus('Aborting deployment...', 'warning');
+            } else {
+                console.error('Failed to cancel deployment:', response.statusText);
+            }
+        } catch (error) {
+            console.error('Error cancelling deployment:', error);
+        }
+    }
+
+    handleSSEMessage(event) {
         try {
             const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data);
+            console.log('Received SSE message:', data);
 
             switch (data.type) {
+                case 'connected':
+                    console.log('SSE connected for session:', data.sessionId);
+                    break;
+                    
                 case 'output':
                     console.log('Processing output:', data.content);
                     this.appendOutput(data.content);
@@ -242,34 +266,39 @@ class OCDApp {
                     console.log('Processing completion:', data);
                     this.handleDeploymentComplete(data);
                     break;
+                    
+                case 'keepalive':
+                    // Ignore keepalive messages
+                    break;
 
                 default:
                     console.warn('Unknown message type:', data.type);
             }
         } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+            console.error('Error parsing SSE message:', error);
             this.showStatus('Error processing server response', 'error');
             this.resetDeployButton();
         }
     }
 
-    handleWebSocketError(error) {
-        console.error('WebSocket error:', error);
+    handleSSEError(error) {
+        console.error('SSE error:', error);
         this.showStatus('Connection error occurred', 'error');
         this.resetDeployButton();
         this.cleanup();
     }
 
-    handleWebSocketClose() {
-        console.log('WebSocket connection closed');
+    handleSSEClose() {
+        console.log('SSE connection closed');
         // Only show error if deployment was still in progress
-        if (this.deployBtn.textContent === 'Deploying...') {
+        if (this.deployBtn.textContent === 'Deploying...Click to Abort!') {
             this.resetDeployButton();
             this.showStatus('Connection lost during deployment', 'error');
             this.cleanup();
         }
-        // Just close the websocket connection, don't reset progress
-        this.websocket = null;
+        // Clean up the event source
+        this.eventSource = null;
+        this.currentSessionId = null;
     }
 
     handleDeploymentComplete(data) {
@@ -292,7 +321,7 @@ class OCDApp {
 
     resetDeployButton() {
         this.setDeployingState(false);
-        this.websocket = null;
+        this.cleanup();
     }
 
     setDeployingState(isDeploying) {
@@ -361,10 +390,11 @@ class OCDApp {
     }
 
     cleanup() {
-        if (this.websocket) {
-            this.websocket.close();
-            this.websocket = null;
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
         }
+        this.currentSessionId = null;
     }
 }
 

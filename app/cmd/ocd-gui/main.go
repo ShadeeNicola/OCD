@@ -36,7 +36,12 @@ func main() {
     http.HandleFunc("/api/browse", httpapi.HandleBrowse)
     http.HandleFunc("/api/deploy", httpapi.HandleDeploy)
     http.HandleFunc("/api/health", httpapi.HandleHealth)
-    http.HandleFunc("/ws/deploy", httpapi.HandleWebSocketDeploy(cfg))
+    
+    // SSE-based deployment routes
+    http.HandleFunc("/api/deploy/start", httpapi.HandleDeployStart(cfg))
+    http.HandleFunc("/api/deploy/stream/", httpapi.HandleDeployStream)
+    http.HandleFunc("/api/deploy/cancel/", httpapi.HandleDeployCancel)
+    
     logger.Info("Routes configured successfully")
 
     fmt.Printf("[%s] Server ready to start in %v\n", time.Now().Format("15:04:05.000"), time.Since(startTime))

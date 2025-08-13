@@ -11,8 +11,6 @@ import (
     "strings"
     "time"
 
-    "github.com/gorilla/websocket"
-
     "app/internal/config"
     "app/internal/progress"
     "app/internal/security"
@@ -39,62 +37,91 @@ func (ce *CommandExecutor) Execute(folderPath string) progress.Response {
     return progress.Response{Message: fmt.Sprintf("OCD deployment completed!\n%s", string(output)), Success: true}
 }
 
-func (ce *CommandExecutor) ExecuteWithWebSocket(folderPath string, conn *websocket.Conn, writeJSON func(*websocket.Conn, interface{}) error) {
+
+// ExecuteWithSSE runs the OCD script and streams output via SSE channel
+func (ce *CommandExecutor) ExecuteWithSSE(ctx context.Context, folderPath string, writer chan []byte) {
     if err := security.ValidateFolderPath(folderPath); err != nil {
-        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Invalid folder path: %s", err.Error()), Success: false})
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Invalid folder path: %s", err.Error()), Success: false})
         return
     }
     safeFolderPath := security.SanitizePath(folderPath)
 
     cmd, err := ce.buildCommand(safeFolderPath)
     if err != nil {
-        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: err.Error(), Success: false})
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: err.Error(), Success: false})
         return
     }
 
     stdout, err := cmd.StdoutPipe()
-    if err != nil { writeJSON(conn, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error creating stdout pipe: %s", err.Error()), Success: false}); return }
+    if err != nil { 
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error creating stdout pipe: %s", err.Error()), Success: false})
+        return 
+    }
     stderr, err := cmd.StderrPipe()
-    if err != nil { writeJSON(conn, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error creating stderr pipe: %s", err.Error()), Success: false}); return }
+    if err != nil { 
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error creating stderr pipe: %s", err.Error()), Success: false})
+        return 
+    }
 
-    if err := cmd.Start(); err != nil { writeJSON(conn, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error starting command: %s", err.Error()), Success: false}); return }
+    if err := cmd.Start(); err != nil { 
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: fmt.Sprintf("Error starting command: %s", err.Error()), Success: false})
+        return 
+    }
 
-    ctx, cancel := context.WithTimeout(context.Background(), time.Duration(ce.config.CommandTimeout)*time.Second)
-    defer cancel()
+    // Create a combined context for timeout and cancellation
+    timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(ce.config.CommandTimeout)*time.Second)
+    defer timeoutCancel()
 
+    // Stream stdout
     go func() {
         scanner := bufio.NewScanner(stdout)
         for scanner.Scan() {
-            select { case <-ctx.Done(): return; default: }
+            select { 
+            case <-timeoutCtx.Done(): 
+                return 
+            default: 
+            }
             line := scanner.Text()
             if strings.Contains(line, "screen size is bogus") { continue }
-            writeJSON(conn, progress.OutputMessage{Type: "output", Content: line})
-            if pu := progress.ParseProgressFromOutput(line); pu != nil { writeJSON(conn, pu) }
+            sendSSEMessage(writer, progress.OutputMessage{Type: "output", Content: line})
+            if pu := progress.ParseProgressFromOutput(line); pu != nil { 
+                sendSSEMessage(writer, pu) 
+            }
         }
     }()
 
+    // Stream stderr
     go func() {
         scanner := bufio.NewScanner(stderr)
         for scanner.Scan() {
-            select { case <-ctx.Done(): return; default: }
+            select { 
+            case <-timeoutCtx.Done(): 
+                return 
+            default: 
+            }
             line := scanner.Text()
             if strings.Contains(line, "screen size is bogus") { continue }
-            writeJSON(conn, progress.OutputMessage{Type: "output", Content: line})
+            sendSSEMessage(writer, progress.OutputMessage{Type: "output", Content: line})
         }
     }()
 
+    // Wait for completion
     done := make(chan error, 1)
     go func() { done <- cmd.Wait() }()
 
     select {
-    case <-ctx.Done():
+    case <-timeoutCtx.Done():
         _ = cmd.Process.Kill()
-        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: "Deployment timed out", Success: false})
+        if timeoutCtx.Err() == context.DeadlineExceeded {
+            sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: "Deployment timed out", Success: false})
+        } else {
+            sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: "Deployment cancelled", Success: false})
+        }
     case err := <-done:
         success := err == nil
         msg := "Check logs for more details"
         if success { msg = "Deployment completed successfully" }
-        writeJSON(conn, progress.OutputMessage{Type: "complete", Content: msg, Success: success})
+        sendSSEMessage(writer, progress.OutputMessage{Type: "complete", Content: msg, Success: success})
     }
 }
 
