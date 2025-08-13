@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv:*)",
+      "Bash(DIST_DIR=dist ./build/build-all-executables.sh)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(./build/build-all-executables.sh:*)"
+    ],
+    "deny": []
+  }
+}
