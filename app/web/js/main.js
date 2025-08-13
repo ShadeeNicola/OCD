@@ -84,9 +84,17 @@ class OCDApp {
                 const targetId = link.getAttribute('href').substring(1);
                 const targetElement = document.getElementById(targetId);
                 if (targetElement) {
-                    targetElement.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
+                    // Get header height to offset scroll position
+                    const header = document.querySelector('.header');
+                    const headerHeight = header ? header.offsetHeight : 80; // fallback to 80px
+                    
+                    // Calculate the target position minus header height
+                    const elementPosition = targetElement.getBoundingClientRect().top;
+                    const offsetPosition = elementPosition + window.pageYOffset - headerHeight - 20; // extra 20px padding
+                    
+                    window.scrollTo({
+                        top: offsetPosition,
+                        behavior: 'smooth'
                     });
                 }
             });
