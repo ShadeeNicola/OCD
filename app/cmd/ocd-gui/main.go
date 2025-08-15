@@ -10,6 +10,7 @@ import (
 
     cfgpkg "app/internal/config"
     httpapi "app/internal/http"
+    "app/internal/jenkins"
     "app/internal/ui"
     "app/internal/executor"
     "app/internal/logging"
@@ -33,12 +34,21 @@ func main() {
     fmt.Printf("[%s] Loading configuration...\n", time.Now().Format("15:04:05.000"))
     cfg := cfgpkg.Load()
     runner := executor.NewRunner(executor.NewCommandExecutor(cfg))
+    jenkinsClient := jenkins.NewClient(cfg.Jenkins)
     fmt.Printf("[%s] Configuration loaded in %v\n", time.Now().Format("15:04:05.000"), time.Since(startTime))
 
     fmt.Printf("[%s] Setting up routes...\n", time.Now().Format("15:04:05.000"))
     http.HandleFunc("/api/browse", httpapi.HandleBrowse)
     http.HandleFunc("/api/deploy", httpapi.HandleDeploy(runner))
     http.HandleFunc("/api/health", httpapi.HandleHealth)
+    
+    // Jenkins scaling routes
+    http.HandleFunc("/api/jenkins/scale", httpapi.HandleJenkinsScale(jenkinsClient))
+    http.HandleFunc("/api/jenkins/status", httpapi.HandleJenkinsStatus(jenkinsClient))
+    http.HandleFunc("/api/jenkins/queue", httpapi.HandleJenkinsQueueStatus(jenkinsClient))
+    
+    // AWS EKS routes
+    http.HandleFunc("/api/eks/clusters", httpapi.HandleEKSClusters)
     
     // SSE-based deployment routes
     http.HandleFunc("/api/deploy/start", httpapi.HandleDeployStart(cfg, runner))

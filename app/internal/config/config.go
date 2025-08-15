@@ -13,6 +13,13 @@ type Config struct {
     AllowedOrigins []string
     MaxOutputLines int
     CommandTimeout int // seconds
+    Jenkins        JenkinsConfig
+}
+
+type JenkinsConfig struct {
+    URL      string
+    Username string
+    Token    string
 }
 
 func Load() *Config {
@@ -22,6 +29,11 @@ func Load() *Config {
         ScriptName:     getEnvOrDefault("OCD_SCRIPT_NAME", "OCD.sh"),
         AllowedOrigins: getAllowedOrigins(),
         CommandTimeout: getEnvIntOrDefault("OCD_COMMAND_TIMEOUT", 1800),
+        Jenkins: JenkinsConfig{
+            URL:      getEnvOrDefault("OCD_JENKINS_URL", "https://jenkins-delivery.oss.corp.amdocs.aws"),
+            Username: getEnvOrDefault("OCD_JENKINS_USERNAME", ""),
+            Token:    getEnvOrDefault("OCD_JENKINS_TOKEN", ""),
+        },
     }
 }
 

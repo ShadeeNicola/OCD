@@ -2,6 +2,9 @@ import { CONFIG } from './constants.js';
 import { generateTimestamp, downloadTextFile, ansiToHtml } from './utils.js';
 import { HistoryManager } from './history-manager.js';
 import { ProgressManager } from './progress-manager.js';
+import { initializeScaling } from './jenkins-scaling.js';
+import { initializeSettings } from './settings.js';
+import { initializeClusterSelector } from './cluster-selector.js';
 
 class OCDApp {
     constructor() {
@@ -387,6 +390,12 @@ class OCDApp {
 
     initialize() {
         this.validateFolderPath();
+        // Initialize cluster selector
+        initializeClusterSelector();
+        // Initialize Jenkins scaling functionality
+        initializeScaling();
+        // Initialize settings functionality  
+        initializeSettings();
         // fetch version info and update UI footer
         fetch('/api/health').then(r => r.json()).then(info => {
             const el = document.getElementById('app-version');
