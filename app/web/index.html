@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OCD - One Click Deployer</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="styles/layout.css">
+    <link rel="stylesheet" href="styles/landing.css">
+    <link rel="stylesheet" href="styles/scaling.css">
+    <link rel="stylesheet" href="styles/settings.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;500;600;700&display=swap" rel="stylesheet">
@@ -221,19 +226,21 @@
                                 <div class="settings-section">
                                     <h3>Jenkins Configuration</h3>
                                     
-                                    <div class="form-group">
-                                        <label for="jenkins-username">Jenkins Username:</label>
-                                        <input type="text" id="jenkins-username" name="jenkins-username" placeholder="Your Jenkins username" autocomplete="username">
-                                    </div>
+                                    <div class="jenkins-form-row">
+                                        <div class="form-group">
+                                            <label for="jenkins-username">Jenkins Username:</label>
+                                            <input type="text" id="jenkins-username" name="jenkins-username" placeholder="Your Jenkins username" autocomplete="username">
+                                        </div>
 
-                                    <div class="form-group">
-                                        <label for="jenkins-token">Jenkins API Token:</label>
-                                        <input type="password" id="jenkins-token" name="jenkins-token" placeholder="Your Jenkins API token" autocomplete="current-password">
-                                        <button type="button" id="toggle-token-btn" class="toggle-password-btn" title="Show/Hide Token">
-                                            <svg width="16" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                                <path id="eye-icon" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                                            </svg>
-                                        </button>
+                                        <div class="form-group">
+                                            <label for="jenkins-token">Jenkins API Token:</label>
+                                            <input type="password" id="jenkins-token" name="jenkins-token" placeholder="Your Jenkins API token" autocomplete="current-password">
+                                            <button type="button" id="toggle-token-btn" class="toggle-password-btn" title="Show/Hide Token">
+                                                <svg width="16" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path id="eye-icon" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div class="jenkins-instructions">
