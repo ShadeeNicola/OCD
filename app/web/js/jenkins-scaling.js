@@ -49,8 +49,9 @@ async function handleScaleAction(scaleType) {
         const failed = results.filter(r => r.status === 'rejected' || !r.value.success);
 
         if (successful.length === selectedClusters.length) {
-            showScalingMessage(`Successfully triggered scale up for all ${clusterCount} clusters!`, 'success');
-            showScalingStatus('success', `Scale up triggered for all clusters`);
+            const clusterNames = selectedClusters.join(', ');
+            showScalingMessage(`Successfully triggered scale up for ${clusterNames}!`, 'success');
+            showScalingStatus('success', `Scale up triggered for ${clusterNames}`);
         } else if (successful.length > 0) {
             showScalingMessage(`Scale up triggered for ${successful.length}/${clusterCount} clusters`, 'warning');
             showScalingStatus('warning', `Partial success: ${successful.length}/${clusterCount} clusters`);
@@ -58,10 +59,21 @@ async function handleScaleAction(scaleType) {
             throw new Error('Failed to trigger scaling for any clusters');
         }
 
-        // Show the first successful Jenkins link (if any)
+        // Show the first successful Jenkins link and start polling for queue updates
         const firstSuccess = successful.find(r => r.value.job_status?.url);
         if (firstSuccess) {
-            showJenkinsLink(firstSuccess.value.job_status.url);
+            const jobStatus = firstSuccess.value.job_status;
+            showJenkinsLink(jobStatus.url);
+            
+            // If it's a queue URL, start queue polling to get the actual job URL
+            if (jobStatus.url.includes('/queue/item/')) {
+                currentQueueURL = jobStatus.url;
+                startQueuePolling();
+            } else if (jobStatus.number) {
+                // If we already have a job number, start regular polling
+                currentJobNumber = jobStatus.number;
+                startStatusPolling();
+            }
         }
 
         // Clear selection after successful scaling

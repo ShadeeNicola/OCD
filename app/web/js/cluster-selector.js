@@ -5,6 +5,7 @@ let selectedClusters = new Set();
 let filteredClusters = [];
 let isDropdownOpen = false;
 let highlightedIndex = -1; // Track highlighted option for keyboard navigation
+let freeTextModeEnabled = false; // Track whether free text mode is enabled
 
 export function initializeClusterSelector() {
     const selectorContainer = document.getElementById('cluster-selector');
@@ -80,6 +81,7 @@ async function loadClusters() {
         hideElement(loadingEl);
         showElement(errorEl);
         errorEl.querySelector('span').textContent = `Failed to load clusters: ${error.message}`;
+        enableFreeTextMode(true); // Enable free text mode when cluster loading fails
     }
 }
 
@@ -108,16 +110,33 @@ function handleKeyDown(e) {
         navigateOptions(-1);
     } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (highlightedIndex >= 0 && highlightedIndex < filteredClusters.length) {
+        const searchTerm = e.target.value.trim();
+        const hasCustomOption = searchTerm && !filteredClusters.includes(searchTerm) && (freeTextModeEnabled || allClusters.length === 0);
+        const totalOptions = filteredClusters.length + (hasCustomOption ? 1 : 0);
+        
+        if (highlightedIndex >= 0 && highlightedIndex < totalOptions) {
             // Select highlighted option
-            const clusterName = filteredClusters[highlightedIndex];
-            selectCluster(clusterName);
+            if (highlightedIndex < filteredClusters.length) {
+                // Regular cluster option
+                const clusterName = filteredClusters[highlightedIndex];
+                selectCluster(clusterName);
+            } else {
+                // Custom cluster option
+                selectCluster(searchTerm);
+            }
+            e.target.value = '';
+            handleSearchInput(e); // Reset filter
             resetHighlight();
         } else {
             // Try to select by search term
-            const searchTerm = e.target.value.trim();
-            if (searchTerm && filteredClusters.includes(searchTerm)) {
-                selectCluster(searchTerm);
+            if (searchTerm) {
+                if (filteredClusters.includes(searchTerm)) {
+                    // Cluster exists in the list
+                    selectCluster(searchTerm);
+                } else if (freeTextModeEnabled || allClusters.length === 0) {
+                    // Free text mode: allow custom cluster names
+                    selectCluster(searchTerm);
+                }
                 e.target.value = '';
                 handleSearchInput(e); // Reset filter
             }
@@ -159,22 +178,50 @@ function closeDropdown() {
 
 function renderClusterList() {
     const listEl = document.getElementById('cluster-list');
+    const searchInput = document.getElementById('cluster-search');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    
+    let listContent = '';
     
     if (filteredClusters.length === 0) {
-        listEl.innerHTML = '<div class="dropdown-empty">No clusters found</div>';
-        return;
+        if (searchTerm && (freeTextModeEnabled || allClusters.length === 0)) {
+            // Show option to add custom cluster name
+            listContent = `
+                <div class="dropdown-empty">No clusters found</div>
+                <div class="cluster-option add-custom" data-cluster="${searchTerm}" data-index="0">
+                    <span>Add "${searchTerm}" as custom cluster</span>
+                    <span class="add-icon">+</span>
+                </div>
+            `;
+        } else {
+            listContent = '<div class="dropdown-empty">No clusters found</div>';
+        }
+    } else {
+        listContent = filteredClusters.map((cluster, index) => {
+            const isSelected = selectedClusters.has(cluster);
+            const isHighlighted = index === highlightedIndex;
+            return `
+                <div class="cluster-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-cluster="${cluster}" data-index="${index}">
+                    <span>${cluster}</span>
+                    ${isSelected ? '<span class="checkmark">✓</span>' : ''}
+                </div>
+            `;
+        }).join('');
+        
+        // Add custom cluster option if search term doesn't match any existing cluster
+        if (searchTerm && !filteredClusters.includes(searchTerm) && (freeTextModeEnabled || allClusters.length === 0)) {
+            const customIndex = filteredClusters.length;
+            const isHighlighted = customIndex === highlightedIndex;
+            listContent += `
+                <div class="cluster-option add-custom ${isHighlighted ? 'highlighted' : ''}" data-cluster="${searchTerm}" data-index="${customIndex}">
+                    <span>Add "${searchTerm}" as custom cluster</span>
+                    <span class="add-icon">+</span>
+                </div>
+            `;
+        }
     }
-
-    listEl.innerHTML = filteredClusters.map((cluster, index) => {
-        const isSelected = selectedClusters.has(cluster);
-        const isHighlighted = index === highlightedIndex;
-        return `
-            <div class="cluster-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-cluster="${cluster}" data-index="${index}">
-                <span>${cluster}</span>
-                ${isSelected ? '<span class="checkmark">✓</span>' : ''}
-            </div>
-        `;
-    }).join('');
+    
+    listEl.innerHTML = listContent;
 
     // Add click handlers
     listEl.querySelectorAll('.cluster-option').forEach(option => {
@@ -182,7 +229,12 @@ function renderClusterList() {
             e.stopPropagation();
             const clusterName = option.dataset.cluster;
             
-            if (selectedClusters.has(clusterName)) {
+            if (option.classList.contains('add-custom')) {
+                // Add custom cluster
+                selectCluster(clusterName);
+                searchInput.value = '';
+                handleSearchInput({ target: searchInput }); // Reset filter
+            } else if (selectedClusters.has(clusterName)) {
                 deselectCluster(clusterName);
             } else {
                 selectCluster(clusterName);
@@ -273,13 +325,22 @@ export function setSelectedClusters(clusters) {
 
 // Keyboard navigation functions
 function navigateOptions(direction) {
-    if (!isDropdownOpen || filteredClusters.length === 0) {
+    if (!isDropdownOpen) {
+        return;
+    }
+
+    const searchInput = document.getElementById('cluster-search');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    const hasCustomOption = searchTerm && !filteredClusters.includes(searchTerm) && (freeTextModeEnabled || allClusters.length === 0);
+    const totalOptions = filteredClusters.length + (hasCustomOption ? 1 : 0);
+    
+    if (totalOptions === 0) {
         return;
     }
 
     const newIndex = highlightedIndex + direction;
     
-    if (newIndex >= 0 && newIndex < filteredClusters.length) {
+    if (newIndex >= 0 && newIndex < totalOptions) {
         highlightedIndex = newIndex;
         renderClusterList();
         scrollToHighlighted();
@@ -311,5 +372,24 @@ function scrollToHighlighted() {
                 behavior: 'smooth'
             });
         }
+    }
+}
+
+function enableFreeTextMode(enabled) {
+    freeTextModeEnabled = enabled;
+    const searchInput = document.getElementById('cluster-search');
+    
+    if (enabled) {
+        searchInput.placeholder = 'Type cluster name or search existing clusters...';
+        // Show a note about free text mode in the error area
+        const errorEl = document.getElementById('cluster-error');
+        if (errorEl && errorEl.style.display !== 'none') {
+            const errorSpan = errorEl.querySelector('span');
+            if (errorSpan) {
+                errorSpan.innerHTML = errorSpan.textContent + '<br><small>You can type a cluster name manually and press Enter to add it.</small>';
+            }
+        }
+    } else {
+        searchInput.placeholder = 'Type to search clusters...';
     }
 }
