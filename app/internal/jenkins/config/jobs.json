@@ -1,0 +1,70 @@
+{
+  "jobs": {
+    "scaling": {
+      "name": "EKS Cluster Scaling",
+      "description": "Scale EKS clusters up or down",
+      "job_path": "job/Utility/job/OpsUtil/job/scaleUpOrDown2",
+      "method": "POST",
+      "endpoint_suffix": "buildWithParameters",
+      "timeout_seconds": 30,
+      "parameters": {
+        "eks_clustername": {
+          "type": "string",
+          "required": true,
+          "description": "Name of the EKS cluster to scale"
+        },
+        "scale_type": {
+          "type": "string",
+          "required": true,
+          "description": "Scale direction: 'up' or 'down'",
+          "allowed_values": ["up", "down"]
+        },
+        "account": {
+          "type": "string",
+          "required": true,
+          "description": "Account identifier",
+          "default": "ATT"
+        }
+      },
+      "responses": {
+        "queue_success_status": 201,
+        "status_success_status": 200
+      }
+    }
+  },
+  "artifacts": {
+    "parsing": {
+      "timeout_seconds": 60,
+      "regex_patterns": {
+        "deployed_artifacts_section": "(?s)Deployed Artifacts\\s*<ul>(.*?)</ul>",
+        "artifact_item": "<li><a href=\"([^\"]+)\">([^<]+)</a>\\s*\\(type:\\s*([^)]+)\\)</li>"
+      },
+      "supported_types": [
+        "jar",
+        "war",
+        "zip",
+        "rpm",
+        "tar.gz",
+        "tar.bz2",
+        "ear"
+      ]
+    }
+  },
+  "global": {
+    "default_timeout_seconds": 30,
+    "retry_attempts": 3,
+    "retry_delay_seconds": 2,
+    "user_agent": "OCD-Jenkins-Client/1.0"
+  },
+  "error_handling": {
+    "log_sensitive_data": false,
+    "include_stack_trace": true,
+    "custom_error_codes": {
+      "authentication_failed": "JENKINS_AUTH_001",
+      "job_not_found": "JENKINS_JOB_002",
+      "invalid_parameters": "JENKINS_PARAM_003",
+      "timeout": "JENKINS_TIMEOUT_004",
+      "parsing_failed": "JENKINS_PARSE_005"
+    }
+  }
+}

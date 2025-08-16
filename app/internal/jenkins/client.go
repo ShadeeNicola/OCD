@@ -1,44 +1,40 @@
 package jenkins
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"app/internal/config"
+	jenkinsconfig "app/internal/jenkins/config"
+	"app/internal/jenkins/errors"
+	"app/internal/jenkins/types"
 )
 
+// Client represents a Jenkins HTTP client with authentication
 type Client struct {
-	baseURL    string
-	username   string
-	token      string
-	httpClient *http.Client
+	baseURL     string
+	username    string
+	token       string
+	httpClient  *http.Client
+	config      *jenkinsconfig.JobsConfig
+	options     *types.ClientOptions
 }
 
-type ScaleRequest struct {
-	ClusterName string `json:"cluster_name"`
-	ScaleType   string `json:"scale_type"` // "up" or "down"
-	Account     string `json:"account"`    // "ATT"
-}
-
-type JobStatus struct {
-	Number      int    `json:"number"`
-	Status      string `json:"status"` // "running", "success", "failed"
-	URL         string `json:"url"`
-	Duration    int64  `json:"duration"`
-	Description string `json:"description"`
-}
-
+// ClientConfig represents configuration for creating a Jenkins client
 type ClientConfig struct {
-	URL      string
-	Username string
-	Token    string
+	URL       string
+	Username  string
+	Token     string
+	Options   *types.ClientOptions
 }
 
-func NewClient(cfg config.JenkinsConfig) *Client {
+// NewClient creates a new Jenkins client from app config
+func NewClient(cfg config.JenkinsConfig) (*Client, error) {
 	return NewClientWithConfig(ClientConfig{
 		URL:      cfg.URL,
 		Username: cfg.Username,
@@ -46,204 +42,255 @@ func NewClient(cfg config.JenkinsConfig) *Client {
 	})
 }
 
-func NewClientWithConfig(cfg ClientConfig) *Client {
-	return &Client{
-		baseURL:  cfg.URL,
-		username: cfg.Username,
-		token:    cfg.Token,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+// NewClientWithConfig creates a new Jenkins client with detailed configuration
+func NewClientWithConfig(cfg ClientConfig) (*Client, error) {
+	// Load Jenkins jobs configuration
+	jobsConfig, err := jenkinsconfig.LoadConfig()
+	if err != nil {
+		return nil, errors.NewConfigurationError("failed to load Jenkins configuration", err)
 	}
+
+	// Set default client options if not provided
+	options := cfg.Options
+	if options == nil {
+		options = &types.ClientOptions{
+			Timeout:       time.Duration(jobsConfig.Global.DefaultTimeoutSeconds) * time.Second,
+			RetryAttempts: jobsConfig.Global.RetryAttempts,
+			RetryDelay:    time.Duration(jobsConfig.Global.RetryDelaySeconds) * time.Second,
+			UserAgent:     jobsConfig.Global.UserAgent,
+		}
+	}
+
+	// Create HTTP client with timeout
+	httpClient := &http.Client{
+		Timeout: options.Timeout,
+	}
+
+	client := &Client{
+		baseURL:    strings.TrimSuffix(cfg.URL, "/"),
+		username:   cfg.Username,
+		token:      cfg.Token,
+		httpClient: httpClient,
+		config:     jobsConfig,
+		options:    options,
+	}
+
+	return client, nil
 }
 
-func (c *Client) GetURL() string {
+// Get performs a GET request without authentication
+func (c *Client) Get(ctx context.Context, url string) ([]byte, error) {
+	return c.doRequest(ctx, "GET", url, nil, false)
+}
+
+// Post performs a POST request without authentication
+func (c *Client) Post(ctx context.Context, url string, data map[string]string) ([]byte, error) {
+	return c.doRequest(ctx, "POST", url, data, false)
+}
+
+// GetWithAuth performs a GET request with authentication
+func (c *Client) GetWithAuth(ctx context.Context, url string) ([]byte, error) {
+	return c.doRequest(ctx, "GET", url, nil, true)
+}
+
+// PostWithAuth performs a POST request with authentication  
+func (c *Client) PostWithAuth(ctx context.Context, url string, data map[string]string) ([]byte, error) {
+	return c.doRequest(ctx, "POST", url, data, true)
+}
+
+// IsConfigured returns true if the client has authentication credentials
+func (c *Client) IsConfigured() bool {
+	return c.username != "" && c.token != ""
+}
+
+// GetBaseURL returns the base Jenkins URL
+func (c *Client) GetBaseURL() string {
 	return c.baseURL
 }
 
-func (c *Client) TriggerScaleJob(req ScaleRequest) (*JobStatus, error) {
-	if c.username == "" || c.token == "" {
-		return nil, fmt.Errorf("Jenkins credentials not configured")
+// GetConfig returns the Jenkins jobs configuration
+func (c *Client) GetConfig() *jenkinsconfig.JobsConfig {
+	return c.config
+}
+
+// GetJobURL constructs a full URL for a Jenkins job
+func (c *Client) GetJobURL(jobName string) (string, error) {
+	return c.config.GetJobURL(c.baseURL, jobName)
+}
+
+// ValidateJobParameters validates parameters for a specific job
+func (c *Client) ValidateJobParameters(jobName string, params map[string]string) error {
+	return c.config.ValidateJobParameters(jobName, params)
+}
+
+// doRequest performs the actual HTTP request with retry logic
+func (c *Client) doRequest(ctx context.Context, method, requestURL string, data map[string]string, useAuth bool) ([]byte, error) {
+	var lastErr error
+
+	// Retry logic
+	for attempt := 0; attempt <= c.options.RetryAttempts; attempt++ {
+		if attempt > 0 {
+			// Wait before retrying
+			select {
+			case <-ctx.Done():
+				return nil, errors.NewTimeoutError("request cancelled during retry", ctx.Err())
+			case <-time.After(c.options.RetryDelay):
+			}
+		}
+
+		body, err := c.executeRequest(ctx, method, requestURL, data, useAuth)
+		if err == nil {
+			return body, nil
+		}
+
+		lastErr = err
+
+		// Check if error is retryable
+		if !c.isRetryableError(err) {
+			break
+		}
 	}
 
-	// Jenkins job path
-	jobPath := "job/Utility/job/OpsUtil/job/scaleUpOrDown2/buildWithParameters"
-	jobURL := fmt.Sprintf("%s/%s", c.baseURL, jobPath)
+	return nil, lastErr
+}
 
-	// Prepare form data
-	formData := url.Values{}
-	formData.Set("eks_clustername", req.ClusterName)
-	formData.Set("scale_type", req.ScaleType)
-	formData.Set("account", req.Account)
+// executeRequest performs a single HTTP request
+func (c *Client) executeRequest(ctx context.Context, method, requestURL string, data map[string]string, useAuth bool) ([]byte, error) {
+	// Prepare request body for POST requests
+	var requestBody io.Reader
+	if method == "POST" && data != nil {
+		formData := url.Values{}
+		for key, value := range data {
+			formData.Set(key, value)
+		}
+		requestBody = strings.NewReader(formData.Encode())
+	}
 
-	// Create request
-	httpReq, err := http.NewRequest("POST", jobURL, strings.NewReader(formData.Encode()))
+	// Create HTTP request
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, errors.NewNetworkError("failed to create HTTP request", 0, err)
 	}
 
 	// Set headers
-	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	httpReq.SetBasicAuth(c.username, c.token)
-
-	// Send request
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("Jenkins returned status %d", resp.StatusCode)
+	if method == "POST" && data != nil {
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 
-	// Get queue item location from Location header
-	location := resp.Header.Get("Location")
-	if location == "" {
-		return nil, fmt.Errorf("no Location header in response")
+	if c.options.UserAgent != "" {
+		req.Header.Set("User-Agent", c.options.UserAgent)
 	}
 
-	return &JobStatus{
-		Status:      "queued",
-		URL:         location, // Keep queue URL initially
-		Description: fmt.Sprintf("Scaling %s cluster %s", req.ScaleType, req.ClusterName),
-	}, nil
-}
-
-func (c *Client) GetJobStatus(jobNumber int) (*JobStatus, error) {
-	if jobNumber <= 0 {
-		return nil, fmt.Errorf("invalid job number: %d", jobNumber)
+	// Add custom headers if any
+	for key, value := range c.options.Headers {
+		req.Header.Set(key, value)
 	}
 
-	jobURL := fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown2/%d/api/json", c.baseURL, jobNumber)
-
-	req, err := http.NewRequest("GET", jobURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(c.username, c.token)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get job status: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Jenkins returned status %d", resp.StatusCode)
-	}
-
-	var jenkinsResp struct {
-		Number    int    `json:"number"`
-		Result    string `json:"result"`
-		Building  bool   `json:"building"`
-		Duration  int64  `json:"duration"`
-		URL       string `json:"url"`
-		FullDisplayName string `json:"fullDisplayName"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&jenkinsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	status := "unknown"
-	if jenkinsResp.Building {
-		status = "running"
-	} else if jenkinsResp.Result == "SUCCESS" {
-		status = "success"
-	} else if jenkinsResp.Result == "FAILURE" {
-		status = "failed"
-	}
-
-	// Create a user-friendly description
-	description := fmt.Sprintf("Job #%d", jenkinsResp.Number)
-	if status == "running" {
-		description = fmt.Sprintf("Job #%d is running", jenkinsResp.Number)
-	} else if status == "success" {
-		description = fmt.Sprintf("Job #%d completed successfully", jenkinsResp.Number)
-	} else if status == "failed" {
-		description = fmt.Sprintf("Job #%d failed", jenkinsResp.Number)
-	}
-
-	return &JobStatus{
-		Number:      jenkinsResp.Number,
-		Status:      status,
-		URL:         jenkinsResp.URL,
-		Duration:    jenkinsResp.Duration,
-		Description: description,
-	}, nil
-}
-
-func (c *Client) GetQueueItemStatus(queueURL string) (*JobStatus, error) {
-	if queueURL == "" {
-		return nil, fmt.Errorf("empty queue URL")
-	}
-
-	// Convert queue URL to API URL
-	queueAPIURL := queueURL + "api/json"
-	
-	req, err := http.NewRequest("GET", queueAPIURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.SetBasicAuth(c.username, c.token)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get queue status: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Jenkins returned status %d", resp.StatusCode)
-	}
-
-	var queueItem struct {
-		Executable struct {
-			Number int    `json:"number"`
-			URL    string `json:"url"`
-		} `json:"executable"`
-		Why       string `json:"why"`
-		Cancelled bool   `json:"cancelled"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&queueItem); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	// If job is cancelled
-	if queueItem.Cancelled {
-		return &JobStatus{
-			Status:      "failed",
-			URL:         queueURL,
-			Description: "Job was cancelled",
-		}, nil
-	}
-
-	// If job is still queued (no executable yet)
-	if queueItem.Executable.Number == 0 {
-		reason := queueItem.Why
-		if reason == "" {
-			reason = "Job is queued"
+	// Set authentication if required and configured
+	if useAuth {
+		if !c.IsConfigured() {
+			return nil, errors.NewAuthenticationError("Jenkins credentials not configured", nil)
 		}
-		return &JobStatus{
-			Status:      "queued",
-			URL:         queueURL,
-			Description: reason,
-		}, nil
+		req.SetBasicAuth(c.username, c.token)
 	}
 
-	// Job has started - return the actual job URL
-	return &JobStatus{
-		Number:      queueItem.Executable.Number,
-		Status:      "running",
-		URL:         queueItem.Executable.URL,
-		Description: fmt.Sprintf("Job #%d is running", queueItem.Executable.Number),
-	}, nil
+	// Execute request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		// Check if it's a timeout error
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, errors.NewTimeoutError("request timeout", err)
+		}
+		return nil, errors.NewNetworkError("HTTP request failed", 0, err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.NewNetworkError("failed to read response body", resp.StatusCode, err)
+	}
+
+	// Check for HTTP errors
+	if resp.StatusCode >= 400 {
+		return nil, c.handleHTTPError(resp.StatusCode, string(body), requestURL)
+	}
+
+	return body, nil
 }
 
-func (c *Client) IsConfigured() bool {
-	return c.username != "" && c.token != ""
+// handleHTTPError creates appropriate errors based on HTTP status codes
+func (c *Client) handleHTTPError(statusCode int, body, url string) error {
+	switch statusCode {
+	case 401, 403:
+		return errors.NewAuthenticationError(
+			fmt.Sprintf("authentication failed (status: %d)", statusCode), 
+			nil,
+		)
+	case 404:
+		return errors.NewJobNotFoundError(
+			"", 
+			fmt.Sprintf("resource not found: %s (status: %d)", url, statusCode), 
+			nil,
+		)
+	case 408, 504:
+		return errors.NewTimeoutError(
+			fmt.Sprintf("request timeout (status: %d)", statusCode), 
+			nil,
+		)
+	case 422:
+		return errors.NewInvalidParametersError(
+			"",
+			fmt.Sprintf("invalid parameters (status: %d): %s", statusCode, body),
+			nil,
+		)
+	case 500, 502, 503:
+		return errors.NewNetworkError(
+			fmt.Sprintf("Jenkins server error (status: %d): %s", statusCode, body),
+			statusCode,
+			nil,
+		)
+	default:
+		return errors.NewNetworkError(
+			fmt.Sprintf("HTTP error (status: %d): %s", statusCode, body),
+			statusCode,
+			nil,
+		)
+	}
+}
+
+// isRetryableError determines if an error should trigger a retry
+func (c *Client) isRetryableError(err error) bool {
+	if jenkinsErr, ok := errors.GetJenkinsError(err); ok {
+		switch jenkinsErr.Type {
+		case "timeout", "network_error":
+			// Retry timeout and network errors
+			return true
+		case "authentication_failed", "invalid_parameters", "parsing_failed":
+			// Don't retry authentication, parameter, or parsing errors
+			return false
+		default:
+			// For server errors (5xx), retry
+			return jenkinsErr.StatusCode >= 500 && jenkinsErr.StatusCode < 600
+		}
+	}
+	return false
+}
+
+// GetJobTimeout returns the configured timeout for a specific job
+func (c *Client) GetJobTimeout(jobName string) time.Duration {
+	return c.config.GetJobTimeout(jobName)
+}
+
+// CreateContextWithTimeout creates a context with job-specific timeout
+func (c *Client) CreateContextWithTimeout(ctx context.Context, jobName string) (context.Context, context.CancelFunc) {
+	timeout := c.GetJobTimeout(jobName)
+	return context.WithTimeout(ctx, timeout)
+}
+
+// Health performs a basic health check on the Jenkins instance
+func (c *Client) Health(ctx context.Context) error {
+	healthURL := c.baseURL + "/api/json"
+	_, err := c.GetWithAuth(ctx, healthURL)
+	return err
 }
