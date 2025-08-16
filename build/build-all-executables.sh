@@ -30,10 +30,11 @@ echo "Building Windows executable..."
 GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
 
 echo "Building Linux executables..."
+# for 32bit support, uncomment the below lines
 GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
-GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
+#GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
 GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
-GOOS=linux GOARCH=arm go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
+#GOOS=linux GOARCH=arm go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
 
 echo "Building macOS executables..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui
