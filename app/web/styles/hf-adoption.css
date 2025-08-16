@@ -1,0 +1,47 @@
+/* HF Adoption Page - Hot Fix Adoption */
+
+/* Coming Soon Styles - Shared with RN Creation */
+.coming-soon {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+
+.coming-soon-icon {
+    margin-bottom: 1.5rem;
+    color: var(--accent-primary);
+    opacity: 0.8;
+}
+
+.coming-soon h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.coming-soon p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.coming-soon-card {
+    margin-bottom: 2rem;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .coming-soon {
+        padding: 2rem 0.5rem;
+    }
+    
+    .coming-soon h3 {
+        font-size: 1.25rem;
+    }
+    
+    .coming-soon p {
+        font-size: 0.9rem;
+    }
+}
