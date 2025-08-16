@@ -27,222 +27,255 @@
                     <span>OCD</span>
                 </div>
                 <nav class="nav">
-                    <a href="#deploy" class="nav-link">Deploy</a>
-                    <a href="#scaling" class="nav-link">Scaling</a>
-                    <a href="#settings" class="nav-link">Settings</a>
-                    <a href="#progress" class="nav-link">Progress</a>
-                    <a href="#output" class="nav-link">Output</a>
+                    <a href="#landing" class="nav-link active" data-page="landing">Deploy</a>
+                    <a href="#scaling" class="nav-link" data-page="scaling">Scaling</a>
+                    <a href="#settings" class="nav-link" data-page="settings">Settings</a>
                 </nav>
             </div>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="main">
-        <div class="container">
-            <!-- Hero Section -->
-            <section class="hero">
-                <div class="hero-content">
-                    <h1 class="hero-title">One Click Deployer</h1>
-                    <p class="hero-subtitle">Detect. Deploy. Deliver.</p>
-                </div>
-            </section>
+    <!-- Page Container -->
+    <div class="page-container">
+        <!-- Landing Page (Deploy, Progress, Output) -->
+        <div class="page active" id="landing-page">
+            <main class="main">
+                <div class="container">
+                    <!-- Hero Section -->
+                    <section class="hero">
+                        <div class="hero-content">
+                            <h1 class="hero-title">One Click Deployer</h1>
+                            <p class="hero-subtitle">Detect. Deploy. Deliver.</p>
+                        </div>
+                    </section>
 
-            <!-- Deployment Card -->
-            <section class="deployment-card" id="deploy">
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Project Selection</h2>
-                        <p>Select your Git repository to begin deployment</p>
-                    </div>
-                    <div class="card-content">
-                        <div class="form-group">
-                            <label for="folder-path">Project Folder:</label>
-                            <div class="folder-input">
-                                <div class="input-container">
-                                    <input type="text" id="folder-path" name="folder-path" placeholder="Select your git repository folder..." autocomplete="on">
-                                    <div id="history-dropdown" class="history-dropdown"></div>
-                                </div>
-                                <button type="button" id="browse-btn" class="btn-secondary">Browse</button>
+                    <!-- Deployment Card -->
+                    <section class="deployment-card" id="deploy">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>Project Selection</h2>
+                                <p>Select your Git repository to begin deployment</p>
                             </div>
-                            <div id="manual-input-note" class="manual-input-note" style="display: none;">
-                                You can also manually type or paste the folder path above.
+                            <div class="card-content">
+                                <div class="form-group">
+                                    <label for="folder-path">Project Folder:</label>
+                                    <div class="folder-input">
+                                        <div class="input-container">
+                                            <input type="text" id="folder-path" name="folder-path" placeholder="Select your git repository folder..." autocomplete="on">
+                                            <div id="history-dropdown" class="history-dropdown"></div>
+                                        </div>
+                                        <button type="button" id="browse-btn" class="btn-secondary">Browse</button>
+                                    </div>
+                                    <div id="manual-input-note" class="manual-input-note" style="display: none;">
+                                        You can also manually type or paste the folder path above.
+                                    </div>
+                                </div>
+
+                                <button id="deploy-btn" class="btn-primary" disabled>Deploy Changes</button>
+
+                                <div id="status-message" class="status-message" style="display: none;"></div>
                             </div>
                         </div>
+                    </section>
 
-                        <button id="deploy-btn" class="btn-primary" disabled>Deploy Changes</button>
+                    <!-- Progress Section -->
+                    <section class="progress-section" id="progress">
+                        <!-- Progress Overview with inline progress bar -->
+                        <div id="deployment-section" class="progress-overview-card" style="display: none;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Stage Progress</h3>
+                                    <div class="deployment-controls">
+                                        <button id="toggle-output-btn" class="btn-secondary">Show Output</button>
+                                        <button id="save-output-btn" class="btn-secondary" disabled>Save Output</button>
+                                    </div>
+                                </div>
+                                <div class="card-content">
+                                    <div id="progress-bar-section" class="inline-progress" style="display: none;">
+                                        <div class="progress-info">
+                                            <span id="progress-text">Initializing deployment...</span>
+                                            <span id="progress-percentage">0%</span>
+                                        </div>
+                                        <div class="progress-bar-track">
+                                            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                                        </div>
+                                    </div>
+                                    <div id="progress-overview" class="progress-overview"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
 
-                        <div id="status-message" class="status-message" style="display: none;"></div>
-                    </div>
+                    <!-- Output Section -->
+                    <section class="output-section" id="output">
+                        <div id="output-window" class="output-card" style="display: none;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>Script Output</h3>
+                                </div>
+                                <div class="card-content">
+                                    <div id="output-content" class="output-content"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-            </section>
+            </main>
+        </div>
 
-            <!-- Environment Scaling Card -->
-            <section class="scaling-card" id="scaling">
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Environment Scaling</h2>
-                        <p>Scale your AWS EKS environment up via Jenkins</p>
-                    </div>
-                    <div class="card-content">
-                        <div class="form-group">
-                            <label for="cluster-selector">EKS Cluster Names:</label>
-                            <div class="multi-select-container">
-                                <div class="multi-select-input" id="cluster-selector">
-                                    <div class="selected-clusters" id="selected-clusters"></div>
-                                    <input type="text" id="cluster-search" placeholder="Type to search clusters..." autocomplete="off">
-                                    <button type="button" id="cluster-dropdown-btn" class="dropdown-btn">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M7 10l5 5 5-5z"/>
+        <!-- Scaling Page -->
+        <div class="page" id="scaling-page">
+            <main class="main">
+                <div class="container">
+                    <!-- Hero Section -->
+                    <section class="hero">
+                        <div class="hero-content">
+                            <h1 class="hero-title">Environment Scaling</h1>
+                            <p class="hero-subtitle">Scale your AWS EKS environment up via Jenkins</p>
+                        </div>
+                    </section>
+
+                    <!-- Environment Scaling Card -->
+                    <section class="scaling-card" id="scaling">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>Environment Scaling</h2>
+                                <p>Scale your AWS EKS environment up via Jenkins</p>
+                            </div>
+                            <div class="card-content">
+                                <div class="form-group">
+                                    <label for="cluster-selector">EKS Cluster Names:</label>
+                                    <div class="multi-select-container">
+                                        <div class="multi-select-input" id="cluster-selector">
+                                            <div class="selected-clusters" id="selected-clusters"></div>
+                                            <input type="text" id="cluster-search" placeholder="Type to search clusters..." autocomplete="off">
+                                            <button type="button" id="cluster-dropdown-btn" class="dropdown-btn">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M7 10l5 5 5-5z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="multi-select-dropdown" id="cluster-dropdown" style="display: none;">
+                                            <div class="dropdown-loading" id="cluster-loading" style="display: none;">
+                                                <span>Loading clusters...</span>
+                                            </div>
+                                            <div class="dropdown-error" id="cluster-error" style="display: none;">
+                                                <span>Failed to load clusters</span>
+                                                <button type="button" id="cluster-retry-btn" class="retry-btn">Retry</button>
+                                            </div>
+                                            <div class="dropdown-list" id="cluster-list"></div>
+                                        </div>
+                                    </div>
+                                    <small class="form-help">Select one or more EKS clusters to scale up</small>
+                                </div>
+
+                                <div class="scaling-controls">
+                                    <button id="scale-up-btn" class="btn-success">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                                         </svg>
+                                        Scale Up
                                     </button>
                                 </div>
-                                <div class="multi-select-dropdown" id="cluster-dropdown" style="display: none;">
-                                    <div class="dropdown-loading" id="cluster-loading" style="display: none;">
-                                        <span>Loading clusters...</span>
+
+                                <div id="scaling-status" class="scaling-status" style="display: none;">
+                                    <div class="status-content">
+                                        <div class="status-indicator">
+                                            <div class="status-icon"></div>
+                                            <span id="scaling-status-text">Preparing to scale...</span>
+                                        </div>
+                                        <div id="jenkins-job-link" class="jenkins-link" style="display: none;">
+                                            <a href="#" target="_blank" rel="noopener">View Jenkins Job →</a>
+                                        </div>
                                     </div>
-                                    <div class="dropdown-error" id="cluster-error" style="display: none;">
-                                        <span>Failed to load clusters</span>
-                                        <button type="button" id="cluster-retry-btn" class="retry-btn">Retry</button>
-                                    </div>
-                                    <div class="dropdown-list" id="cluster-list"></div>
                                 </div>
-                            </div>
-                            <small class="form-help">Select one or more EKS clusters to scale up</small>
-                        </div>
 
-                        <div class="scaling-controls">
-                            <button id="scale-up-btn" class="btn-success">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                                </svg>
-                                Scale Up
-                            </button>
-                        </div>
-
-                        <div id="scaling-status" class="scaling-status" style="display: none;">
-                            <div class="status-content">
-                                <div class="status-indicator">
-                                    <div class="status-icon"></div>
-                                    <span id="scaling-status-text">Preparing to scale...</span>
-                                </div>
-                                <div id="jenkins-job-link" class="jenkins-link" style="display: none;">
-                                    <a href="#" target="_blank" rel="noopener">View Jenkins Job →</a>
-                                </div>
+                                <div id="scaling-message" class="status-message" style="display: none;"></div>
                             </div>
                         </div>
-
-                        <div id="scaling-message" class="status-message" style="display: none;"></div>
-                    </div>
+                    </section>
                 </div>
-            </section>
-
-            <!-- Settings Section -->
-            <section class="settings-card" id="settings">
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Settings</h2>
-                        <p>Configure Jenkins credentials for environment scaling</p>
-                    </div>
-                    <div class="card-content">
-                        <div class="settings-section">
-                            <h3>Jenkins Configuration</h3>
-                            
-                            <div class="form-group">
-                                <label for="jenkins-username">Jenkins Username:</label>
-                                <input type="text" id="jenkins-username" name="jenkins-username" placeholder="Your Jenkins username" autocomplete="username">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="jenkins-token">Jenkins API Token:</label>
-                                <input type="password" id="jenkins-token" name="jenkins-token" placeholder="Your Jenkins API token" autocomplete="current-password">
-                                <button type="button" id="toggle-token-btn" class="toggle-password-btn" title="Show/Hide Token">
-                                    <svg width="16" height="28" viewBox="0 0 24 24" fill="currentColor">
-                                        <path id="eye-icon" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div class="jenkins-instructions">
-                                <h4>How to get your Jenkins API Token:</h4>
-                                <ol>
-                                    <li>Go to <a href="https://jenkins-delivery.oss.corp.amdocs.aws/" target="_blank" rel="noopener">Jenkins</a> and log in</li>
-                                    <li>Click your username → <strong>Configure</strong></li>
-                                    <li>Scroll to <strong>API Token</strong> section</li>
-                                    <li>Click <strong>Add new Token</strong></li>
-                                    <li>Enter name (e.g., "OCD-Token") → <strong>Generate</strong></li>
-                                    <li>Copy the generated token and paste it above</li>
-                                </ol>
-                                <div class="security-note">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zM11 7h2v2h-2V7zm0 4h2v6h-2v-6z"/>
-                                    </svg>
-                                    Your credentials are stored locally and never transmitted except to Jenkins.
-                                </div>
-                            </div>
-
-                            <div class="settings-actions">
-                                <button id="save-settings-btn" class="btn-primary">Save Settings</button>
-                                <button id="test-connection-btn" class="btn-secondary">Test Connection</button>
-                                <button id="clear-settings-btn" class="btn-danger-outline">Clear Credentials</button>
-                            </div>
-
-                            <div id="settings-status" class="settings-status" style="display: none;">
-                                <div class="status-indicator">
-                                    <div class="status-icon"></div>
-                                    <span id="settings-status-text">Checking connection...</span>
-                                </div>
-                            </div>
-
-                            <div id="settings-message" class="status-message" style="display: none;"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Progress Section -->
-            <section class="progress-section" id="progress">
-                <!-- Progress Overview with inline progress bar -->
-                <div id="deployment-section" class="progress-overview-card" style="display: none;">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Stage Progress</h3>
-                            <div class="deployment-controls">
-                                <button id="toggle-output-btn" class="btn-secondary">Show Output</button>
-                                <button id="save-output-btn" class="btn-secondary" disabled>Save Output</button>
-                            </div>
-                        </div>
-                        <div class="card-content">
-                            <div id="progress-bar-section" class="inline-progress" style="display: none;">
-                                <div class="progress-info">
-                                    <span id="progress-text">Initializing deployment...</span>
-                                    <span id="progress-percentage">0%</span>
-                                </div>
-                                <div class="progress-bar-track">
-                                    <div id="progress-bar-fill" class="progress-bar-fill"></div>
-                                </div>
-                            </div>
-                            <div id="progress-overview" class="progress-overview"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Output Section -->
-            <section class="output-section" id="output">
-                <div id="output-window" class="output-card" style="display: none;">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Script Output</h3>
-                        </div>
-                        <div class="card-content">
-                            <div id="output-content" class="output-content"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            </main>
         </div>
-    </main>
+
+        <!-- Settings Page -->
+        <div class="page" id="settings-page">
+            <main class="main">
+                <div class="container">
+                    <!-- Hero Section -->
+                    <section class="hero">
+                        <div class="hero-content">
+                            <h1 class="hero-title">Settings</h1>
+                            <p class="hero-subtitle">Configure Jenkins credentials for environment scaling</p>
+                        </div>
+                    </section>
+
+                    <!-- Settings Section -->
+                    <section class="settings-card" id="settings">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>Settings</h2>
+                                <p>Configure Jenkins credentials for environment scaling</p>
+                            </div>
+                            <div class="card-content">
+                                <div class="settings-section">
+                                    <h3>Jenkins Configuration</h3>
+                                    
+                                    <div class="form-group">
+                                        <label for="jenkins-username">Jenkins Username:</label>
+                                        <input type="text" id="jenkins-username" name="jenkins-username" placeholder="Your Jenkins username" autocomplete="username">
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="jenkins-token">Jenkins API Token:</label>
+                                        <input type="password" id="jenkins-token" name="jenkins-token" placeholder="Your Jenkins API token" autocomplete="current-password">
+                                        <button type="button" id="toggle-token-btn" class="toggle-password-btn" title="Show/Hide Token">
+                                            <svg width="16" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                                <path id="eye-icon" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+
+                                    <div class="jenkins-instructions">
+                                        <h4>How to get your Jenkins API Token:</h4>
+                                        <ol>
+                                            <li>Go to <a href="https://jenkins-delivery.oss.corp.amdocs.aws/" target="_blank" rel="noopener">Jenkins</a> and log in</li>
+                                            <li>Click your username → <strong>Configure</strong></li>
+                                            <li>Scroll to <strong>API Token</strong> section</li>
+                                            <li>Click <strong>Add new Token</strong></li>
+                                            <li>Enter name (e.g., "OCD-Token") → <strong>Generate</strong></li>
+                                            <li>Copy the generated token and paste it above</li>
+                                        </ol>
+                                        <div class="security-note">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zM11 7h2v2h-2V7zm0 4h2v6h-2v-6z"/>
+                                            </svg>
+                                            Your credentials are stored locally and never transmitted except to Jenkins.
+                                        </div>
+                                    </div>
+
+                                    <div class="settings-actions">
+                                        <button id="save-settings-btn" class="btn-primary">Save Settings</button>
+                                        <button id="test-connection-btn" class="btn-secondary">Test Connection</button>
+                                        <button id="clear-settings-btn" class="btn-danger-outline">Clear Credentials</button>
+                                    </div>
+
+                                    <div id="settings-status" class="settings-status" style="display: none;">
+                                        <div class="status-indicator">
+                                            <div class="status-icon"></div>
+                                            <span id="settings-status-text">Checking connection...</span>
+                                        </div>
+                                    </div>
+
+                                    <div id="settings-message" class="status-message" style="display: none;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
 
     <!-- Developer Credit -->
     <footer class="developer-credit">
@@ -263,7 +296,7 @@
                 <h3>Jenkins Setup Required</h3>
                 <button id="close-modal-btn" class="close-btn" type="button">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 19 17.59 17.59 19 12 13.41 6.41 19 5 17.59 13.41 12z"/>
                     </svg>
                 </button>
             </div>

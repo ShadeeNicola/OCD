@@ -4,6 +4,7 @@ let allClusters = [];
 let selectedClusters = new Set();
 let filteredClusters = [];
 let isDropdownOpen = false;
+let highlightedIndex = -1; // Track highlighted option for keyboard navigation
 
 export function initializeClusterSelector() {
     const selectorContainer = document.getElementById('cluster-selector');
@@ -66,7 +67,7 @@ async function loadClusters() {
         const result = await response.json();
 
         if (result.success && result.clusters) {
-            allClusters = result.clusters.sort();
+            allClusters = result.clusters.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
             filteredClusters = [...allClusters];
             renderClusterList();
             hideElement(loadingEl);
@@ -86,8 +87,9 @@ function handleSearchInput(e) {
     const searchTerm = e.target.value.toLowerCase();
     filteredClusters = allClusters.filter(cluster => 
         cluster.toLowerCase().includes(searchTerm)
-    );
+    ).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
     renderClusterList();
+    resetHighlight(); // Reset highlight when filtering
     
     if (!isDropdownOpen) {
         openDropdown();
@@ -98,13 +100,27 @@ function handleKeyDown(e) {
     if (e.key === 'Escape') {
         closeDropdown();
         e.target.blur();
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        navigateOptions(1);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        navigateOptions(-1);
     } else if (e.key === 'Enter') {
         e.preventDefault();
-        const searchTerm = e.target.value.trim();
-        if (searchTerm && filteredClusters.includes(searchTerm)) {
-            selectCluster(searchTerm);
-            e.target.value = '';
-            handleSearchInput(e); // Reset filter
+        if (highlightedIndex >= 0 && highlightedIndex < filteredClusters.length) {
+            // Select highlighted option
+            const clusterName = filteredClusters[highlightedIndex];
+            selectCluster(clusterName);
+            resetHighlight();
+        } else {
+            // Try to select by search term
+            const searchTerm = e.target.value.trim();
+            if (searchTerm && filteredClusters.includes(searchTerm)) {
+                selectCluster(searchTerm);
+                e.target.value = '';
+                handleSearchInput(e); // Reset filter
+            }
         }
     }
 }
@@ -149,10 +165,11 @@ function renderClusterList() {
         return;
     }
 
-    listEl.innerHTML = filteredClusters.map(cluster => {
+    listEl.innerHTML = filteredClusters.map((cluster, index) => {
         const isSelected = selectedClusters.has(cluster);
+        const isHighlighted = index === highlightedIndex;
         return `
-            <div class="cluster-option ${isSelected ? 'selected' : ''}" data-cluster="${cluster}">
+            <div class="cluster-option ${isSelected ? 'selected' : ''} ${isHighlighted ? 'highlighted' : ''}" data-cluster="${cluster}" data-index="${index}">
                 <span>${cluster}</span>
                 ${isSelected ? '<span class="checkmark">✓</span>' : ''}
             </div>
@@ -252,4 +269,47 @@ export function setSelectedClusters(clusters) {
     renderSelectedClusters();
     renderClusterList();
     updateScaleButtonState();
+}
+
+// Keyboard navigation functions
+function navigateOptions(direction) {
+    if (!isDropdownOpen || filteredClusters.length === 0) {
+        return;
+    }
+
+    const newIndex = highlightedIndex + direction;
+    
+    if (newIndex >= 0 && newIndex < filteredClusters.length) {
+        highlightedIndex = newIndex;
+        renderClusterList();
+        scrollToHighlighted();
+    } else if (direction === 1 && highlightedIndex === -1) {
+        // First arrow down - highlight first option
+        highlightedIndex = 0;
+        renderClusterList();
+        scrollToHighlighted();
+    } else if (direction === -1 && highlightedIndex === 0) {
+        // Arrow up from first option - remove highlight
+        highlightedIndex = -1;
+        renderClusterList();
+    }
+}
+
+function resetHighlight() {
+    highlightedIndex = -1;
+    renderClusterList();
+}
+
+function scrollToHighlighted() {
+    if (highlightedIndex >= 0) {
+        const listEl = document.getElementById('cluster-list');
+        const highlightedEl = listEl.querySelector(`[data-index="${highlightedIndex}"]`);
+        
+        if (highlightedEl) {
+            highlightedEl.scrollIntoView({
+                block: 'nearest',
+                behavior: 'smooth'
+            });
+        }
+    }
 }

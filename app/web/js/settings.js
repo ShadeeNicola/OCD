@@ -263,21 +263,18 @@ function hideModal() {
 }
 
 function navigateToSettings() {
-    // Scroll to settings section
-    const settingsSection = document.getElementById('settings');
-    if (settingsSection) {
-        settingsSection.scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-        });
+    // Navigate to settings page using the main app's navigation
+    const settingsLink = document.querySelector('[data-page="settings"]');
+    if (settingsLink) {
+        settingsLink.click();
         
-        // Focus on username input after scrolling
+        // Focus on username input after page transition
         setTimeout(() => {
             const usernameInput = document.getElementById('jenkins-username');
             if (usernameInput) {
                 usernameInput.focus();
             }
-        }, 800);
+        }, 350);
     }
 }
 

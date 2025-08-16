@@ -84,24 +84,50 @@ class OCDApp {
         navLinks.forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const targetId = link.getAttribute('href').substring(1);
-                const targetElement = document.getElementById(targetId);
-                if (targetElement) {
-                    // Get header height to offset scroll position
-                    const header = document.querySelector('.header');
-                    const headerHeight = header ? header.offsetHeight : 80; // fallback to 80px
-                    
-                    // Calculate the target position minus header height
-                    const elementPosition = targetElement.getBoundingClientRect().top;
-                    const offsetPosition = elementPosition + window.pageYOffset - headerHeight - 20; // extra 20px padding
-                    
-                    window.scrollTo({
-                        top: offsetPosition,
-                        behavior: 'smooth'
-                    });
-                }
+                const targetPage = link.getAttribute('data-page');
+                this.navigateToPage(targetPage);
             });
         });
+    }
+
+    navigateToPage(pageName) {
+        // Remove active class from all nav links and pages
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+        document.querySelectorAll('.page').forEach(page => {
+            page.classList.remove('active');
+        });
+
+        // Add active class to clicked nav link
+        const activeLink = document.querySelector(`[data-page="${pageName}"]`);
+        if (activeLink) {
+            activeLink.classList.add('active');
+        }
+
+        // Show target page
+        const targetPage = document.getElementById(`${pageName}-page`);
+        if (targetPage) {
+            targetPage.classList.add('active');
+        }
+
+
+        // Initialize page-specific functionality
+        this.initializePageFunctionality(pageName);
+    }
+
+    initializePageFunctionality(pageName) {
+        // Initialize functionality based on the active page
+        switch (pageName) {
+            case 'scaling':
+                // Re-initialize cluster selector when scaling page is active
+                initializeClusterSelector();
+                break;
+            case 'settings':
+                // Re-initialize settings when settings page is active
+                initializeSettings();
+                break;
+        }
     }
 
     handleFolderInputClick(e) {
@@ -390,12 +416,8 @@ class OCDApp {
 
     initialize() {
         this.validateFolderPath();
-        // Initialize cluster selector
-        initializeClusterSelector();
-        // Initialize Jenkins scaling functionality
+        // Initialize Jenkins scaling functionality (for the scaling page)
         initializeScaling();
-        // Initialize settings functionality  
-        initializeSettings();
         // fetch version info and update UI footer
         fetch('/api/health').then(r => r.json()).then(info => {
             const el = document.getElementById('app-version');
@@ -404,6 +426,9 @@ class OCDApp {
                 if (info.commit) el.title = `commit: ${info.commit}  built: ${info.date || ''}`;
             }
         }).catch(() => {});
+        
+        // Ensure landing page is active by default
+        this.navigateToPage('landing');
     }
 
     cleanup() {
