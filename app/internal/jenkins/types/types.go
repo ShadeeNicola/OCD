@@ -229,3 +229,89 @@ func (aer *ArtifactExtractionResponse) GetArtifactsByRepository() map[string][]D
 	}
 	return result
 }
+
+// RNCreationRequest represents a request to create release notes via storage job
+type RNCreationRequest struct {
+	Branch              string            `json:"branch"`
+	Product             string            `json:"product"`
+	CoreVersion         string            `json:"core_version"`
+	EnvLogin            string            `json:"env_login"`
+	BuildChartVersion   string            `json:"build_chart_version"`
+	BranchName          string            `json:"branch_name"`
+	CustomOrchZipURL    string            `json:"custom_orch_zip_url"`
+	OniImage            string            `json:"oni_image"`
+	Email               string            `json:"email"`
+	Layering            string            `json:"layering"`
+	CustomizationJobURL string            `json:"customization_job_url,omitempty"`
+	Options             map[string]string `json:"options,omitempty"`
+}
+
+// RNCreationResponse represents the response from storage job trigger
+type RNCreationResponse struct {
+	JobStatus   *JobStatus        `json:"job_status"`
+	Message     string            `json:"message"`
+	JobURL      string            `json:"job_url,omitempty"`
+	RequestID   string            `json:"request_id,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// CustomizationJob represents a Jenkins customization job
+type CustomizationJob struct {
+	Number      int       `json:"number"`
+	URL         string    `json:"url"`
+	Status      string    `json:"status"`
+	Result      string    `json:"result"`
+	Timestamp   time.Time `json:"timestamp"`
+	Branch      string    `json:"branch"`
+	TLCVersion  string    `json:"tlc_version,omitempty"`
+	Artifacts   []DeployedArtifact `json:"artifacts,omitempty"`
+	Building    bool      `json:"building"`
+}
+
+// BitbucketCommit represents a commit from Bitbucket API
+type BitbucketCommit struct {
+	ID        string    `json:"id"`
+	DisplayID string    `json:"displayId"`
+	Message   string    `json:"message"`
+	Author    string    `json:"author"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// JenkinsBuildInfo represents the raw structure from Jenkins build API
+type JenkinsBuildInfo struct {
+	Description string `json:"description"`
+	Actions     []struct {
+		Class      string `json:"_class"`
+		Parameters []struct {
+			Class string      `json:"_class"`
+			Name  string      `json:"name"`
+			Value interface{} `json:"value"`
+		} `json:"parameters"`
+	} `json:"actions"`
+}
+
+// CorePatchInfo represents information about core patches/charts
+type CorePatchInfo struct {
+	Namespace string   `json:"namespace"`
+	Charts    []string `json:"charts"`
+}
+
+// RNTableRequest represents the input parameters for RN table data generation
+type RNTableRequest struct {
+	CustomizationJobURL string `json:"customization_job_url"`
+	CustomOrchZipURL    string `json:"custom_orch_zip_url"`
+	OniImage           string `json:"oni_image"`
+	AttImage           string `json:"att_image"`
+	GuidedTaskImage    string `json:"guided_task_image"`
+	CustomizationImage string `json:"customization_image"`
+}
+
+// RNTableData represents the data structure for RN table population
+type RNTableData struct {
+	Application              string `json:"application"`
+	DefectNumber             string `json:"defect_number"`
+	CorePatchCharts          string `json:"core_patch_charts"`
+	CustomOrchestrationZip   string `json:"custom_orchestration_zip"`
+	CommitID                 string `json:"commit_id"`
+	CommentsInstructions     string `json:"comments_instructions"`
+}
