@@ -52,6 +52,12 @@ func main() {
     // AWS EKS routes
     http.HandleFunc("/api/eks/clusters", httpapi.HandleEKSClusters)
     
+    // Git routes
+    http.HandleFunc("/api/git/branches/customization", httpapi.HandleGitBranchesCustomization)
+    
+    // RN Creation routes
+    http.HandleFunc("/api/rn/create", httpapi.HandleRNCreate)
+    
     // SSE-based deployment routes
     http.HandleFunc("/api/deploy/start", httpapi.HandleDeployStart(cfg, runner))
     http.HandleFunc("/api/deploy/stream/", httpapi.HandleDeployStream)

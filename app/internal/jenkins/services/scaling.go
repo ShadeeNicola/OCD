@@ -70,9 +70,14 @@ func (s *ScalingServiceImpl) TriggerScale(ctx context.Context, request *types.Sc
 	// We need to handle this differently since we don't have direct access to headers here
 	// Let's assume the job was queued successfully and create a response
 
+	// Get the base job URL for linking
+	baseJobURL, _ := s.getScalingJobURL()
+	baseJobURL = strings.TrimSuffix(baseJobURL, "/buildWithParameters")
+
 	response := &types.ScaleResponse{
 		JobStatus: &types.JobStatus{
 			Status:      "queued",
+			URL:         baseJobURL, // Set the job URL so the frontend can show the Jenkins link
 			Description: fmt.Sprintf("Scaling %s cluster %s", request.ScaleType, request.ClusterName),
 		},
 		Message:   "Scaling job triggered successfully",

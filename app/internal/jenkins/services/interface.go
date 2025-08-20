@@ -123,6 +123,9 @@ type ServiceFactory interface {
 	// CreateJobService creates a new job service instance
 	CreateJobService(client JenkinsClient) JobService
 	
+	// CreateRNCreationService creates a new RN creation service instance
+	CreateRNCreationService(client JenkinsClient) RNCreationService
+	
 	// CreateMonitoringService creates a new monitoring service instance
 	CreateMonitoringService(client JenkinsClient) MonitoringService
 	
@@ -143,6 +146,9 @@ type ServiceManager interface {
 	
 	// GetJobService returns the job service
 	GetJobService() JobService
+	
+	// GetRNCreationService returns the RN creation service
+	GetRNCreationService() RNCreationService
 	
 	// GetMonitoringService returns the monitoring service
 	GetMonitoringService() MonitoringService
@@ -173,6 +179,45 @@ type RequestValidator interface {
 	
 	// ValidateURL validates Jenkins URLs
 	ValidateURL(url string) (*types.ValidationResult, error)
+}
+
+// RNCreationService defines the interface for Release Notes creation operations
+type RNCreationService interface {
+	// TriggerStorageCreation triggers the ATT_Storage_Creation Jenkins job
+	TriggerStorageCreation(ctx context.Context, request *types.RNCreationRequest) (*types.RNCreationResponse, error)
+	
+	// TriggerStorageCreationWithCredentials triggers the ATT_Storage_Creation Jenkins job with explicit credentials
+	TriggerStorageCreationWithCredentials(ctx context.Context, request *types.RNCreationRequest, username, token string) (*types.RNCreationResponse, error)
+	
+	// GetLatestCustomizationJob retrieves the latest successful/unstable customization job for a branch
+	GetLatestCustomizationJob(ctx context.Context, branch string) (*types.CustomizationJob, error)
+	
+	// GetTLCVersionFromJob extracts TLC version from a customization job
+	GetTLCVersionFromJob(ctx context.Context, jobURL string) (string, error)
+	
+	// GetEKSClusterNameFromJob extracts eks_clustername from a customization job
+	GetEKSClusterNameFromJob(ctx context.Context, jobURL string) (string, error)
+	
+	// GetOniImageFromBitbucket retrieves the latest oni_image value from Bitbucket commit messages
+	GetOniImageFromBitbucket(ctx context.Context, branch, repoName, username, token string) (string, error)
+	
+	// GetCorePatchCharts executes kubectl commands on EKS cluster to get helm charts info
+	GetCorePatchCharts(ctx context.Context, clusterName string) ([]types.CorePatchInfo, error)
+	
+	// GenerateRNTableData generates the complete data structure for RN table
+	GenerateRNTableData(ctx context.Context, request *types.RNTableRequest) (*types.RNTableData, error)
+	
+	// ValidateRNRequest validates an RN creation request
+	ValidateRNRequest(request *types.RNCreationRequest) (*types.ValidationResult, error)
+	
+	// PopulateRequestFromCustomizationJob auto-populates request fields from customization job
+	PopulateRequestFromCustomizationJob(ctx context.Context, request *types.RNCreationRequest) error
+	
+	// GetBuildParameters retrieves build parameters from a Jenkins job
+	GetBuildParameters(ctx context.Context, jobURL string) ([]types.JobParameter, error)
+	
+	// GetBuildDescription retrieves build description from a Jenkins job
+	GetBuildDescription(ctx context.Context, jobURL string) (string, error)
 }
 
 // ResponseParser defines the interface for parsing Jenkins responses

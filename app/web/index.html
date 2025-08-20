@@ -280,6 +280,67 @@
 
                                     <div id="settings-message" class="status-message" style="display: none;"></div>
                                 </div>
+
+                                <div class="settings-section">
+                                    <h3>Bitbucket Configuration</h3>
+                                    <p>Configure Bitbucket credentials for branch fetching</p>
+                                    
+                                    <div class="jenkins-form-row">
+                                        <div class="form-group">
+                                            <label for="bitbucket-username">Bitbucket Username:</label>
+                                            <input type="text" id="bitbucket-username" name="bitbucket-username" placeholder="Your Bitbucket username" autocomplete="username">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="bitbucket-token">Bitbucket HTTP Access Token:</label>
+                                            <input type="password" id="bitbucket-token" name="bitbucket-token" placeholder="Your Bitbucket HTTP access token" autocomplete="current-password">
+                                            <button type="button" id="toggle-bitbucket-token-btn" class="toggle-password-btn" title="Show/Hide Token">
+                                                <svg width="16" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path id="bitbucket-eye-icon" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="jenkins-instructions">
+                                        <h4>How to get your Bitbucket HTTP Access Token:</h4>
+                                        <ol>
+                                            <li>Go to <a href="https://ossbucket:7990" target="_blank" rel="noopener">Bitbucket Server (ossbucket:7990)</a> and log in</li>
+                                            <li>Click your profile picture → <strong>Manage account</strong></li>
+                                            <li>In the left sidebar, click <strong>HTTP access tokens</strong></li>
+                                            <li>Click <strong>Create a token</strong></li>
+                                            <li>Enter a name (e.g., "OCD-RN-Creation") and select required permissions:
+                                                <ul>
+                                                    <li><strong>Repositories</strong> → <strong>Read</strong></li>
+                                                    <li><strong>Projects</strong> → <strong>Read</strong> (if required)</li>
+                                                </ul>
+                                            </li>
+                                            <li>Click <strong>Create</strong> and copy the generated token immediately</li>
+                                            <li>Use your Bitbucket username and the token in the fields above</li>
+                                        </ol>
+                                        <div class="security-note">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zM11 7h2v2h-2V7zm0 4h2v6h-2v-6z"/>
+                                            </svg>
+                                            Your Bitbucket credentials are stored locally and only used to fetch branch information.
+                                        </div>
+                                    </div>
+
+                                    <div class="settings-actions">
+                                        <button id="save-bitbucket-settings-btn" class="btn-primary">Save Bitbucket Settings</button>
+                                        <button id="test-bitbucket-connection-btn" class="btn-secondary">Test Bitbucket Connection</button>
+                                        <button id="clear-bitbucket-settings-btn" class="btn-danger-outline">Clear Bitbucket Credentials</button>
+                                    </div>
+
+                                    <div id="bitbucket-settings-status" class="settings-status" style="display: none;">
+                                        <div class="status-indicator">
+                                            <div class="status-icon"></div>
+                                            <span id="bitbucket-settings-status-text">Checking connection...</span>
+                                        </div>
+                                    </div>
+
+                                    <div id="bitbucket-settings-message" class="status-message" style="display: none;"></div>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -299,22 +360,188 @@
                         </div>
                     </section>
 
-                    <!-- Coming Soon Card -->
-                    <section class="coming-soon-card">
+                    <!-- RN Creation Card -->
+                    <section class="rn-creation-card">
                         <div class="card">
                             <div class="card-header">
                                 <h2>RN Creation</h2>
                                 <p>Automated release notes generation</p>
                             </div>
                             <div class="card-content">
-                                <div class="coming-soon">
-                                    <div class="coming-soon-icon">
-                                        <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-                                        </svg>
+                                <div class="form-group">
+                                    <label for="branch-selector">Select Branch:</label>
+                                    <div class="branch-select-container">
+                                        <div class="branch-select-input" id="branch-selector">
+                                            <div class="selected-branch" id="selected-branch" style="display: none;"></div>
+                                            <input type="text" id="branch-search" placeholder="Loading branches..." autocomplete="off" readonly>
+                                            <button type="button" id="branch-dropdown-btn" class="dropdown-btn">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M7 10l5 5 5-5z"/>
+                                                </svg>
+                                            </button>
+                                            <button type="button" id="refresh-branches-btn" class="refresh-btn" title="Refresh Branches">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div class="branch-select-dropdown" id="branch-dropdown" style="display: none;">
+                                            <div class="dropdown-loading" id="branch-loading" style="display: none;">
+                                                <span>Loading branches...</span>
+                                            </div>
+                                            <div class="dropdown-error" id="branch-error" style="display: none;">
+                                                <span>Failed to load branches</span>
+                                                <button type="button" id="branch-retry-btn" class="retry-btn">Retry</button>
+                                            </div>
+                                            <div class="dropdown-list" id="branch-list"></div>
+                                        </div>
                                     </div>
-                                    <h3>Coming Soon</h3>
-                                    <p>This feature is currently under development. Release Notes creation capabilities will be available in a future update.</p>
+                                    <small class="form-help">Select a branch from the customization repository</small>
+                                </div>
+
+                                <!-- Customization Job Section -->
+                                <div id="customization-job-section" class="customization-job-section" style="display: none;">
+                                    <div class="form-group">
+                                        <label for="customization-job-url">Latest Customization Job:</label>
+                                        <div class="customization-job-input">
+                                            <input type="text" id="customization-job-url" placeholder="Loading latest job..." autocomplete="off">
+                                            <button type="button" id="refresh-job-btn" class="refresh-btn" title="Refresh Job">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <small class="form-help">Latest successful or unstable customization build for selected branch</small>
+                                    </div>
+
+                                    <!-- Storage Job Parameters -->
+                                    <div id="storage-parameters-section" class="storage-parameters-section">
+                                        <h3>Storage Job Parameters</h3>
+                                        
+                                        <div class="jenkins-form-row">
+                                            <div class="form-group">
+                                                <label for="product">Product:</label>
+                                                <input type="text" id="product" value="oso">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="core-version">Core Version:</label>
+                                                <select id="core-version">
+                                                    <option value="">Select version...</option>
+                                                    <option value="2503">2503</option>
+                                                    <option value="2412">2412</option>
+                                                    <option value="2409">2409</option>
+                                                    <option value="2406">2406</option>
+                                                    <option value="2403">2403</option>
+                                                    <option value="2312">2312</option>
+                                                    <option value="2306">2306</option>
+                                                    <option value="2212">2212</option>
+                                                    <option value="2309">2309</option>
+                                                    <option value="2209">2209</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="jenkins-form-row">
+                                            <div class="form-group">
+                                                <label for="env-login">Environment Login:</label>
+                                                <input type="text" id="env-login" value="aws">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="build-chart-version">TLC Version:</label>
+                                                <input type="text" id="build-chart-version" placeholder="Fetching from job..." autocomplete="off">
+                                            </div>
+                                        </div>
+
+                                        <div class="jenkins-form-row">
+                                            <div class="form-group">
+                                                <label for="branch-name">Branch Name:</label>
+                                                <input type="text" id="branch-name" placeholder="Will match selected branch" autocomplete="off">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="layering">Layering:</label>
+                                                <input type="text" id="layering" value="legacy">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="custom-orch-zip-url">Custom Orchestration ZIP URL:</label>
+                                            <input type="text" id="custom-orch-zip-url" placeholder="Fetching from artifacts..." autocomplete="off">
+                                        </div>
+
+                                        <div class="jenkins-form-row">
+                                            <div class="form-group">
+                                                <label for="oni-image">ONI Image:</label>
+                                                <input type="text" id="oni-image" placeholder="Fetching from Bitbucket..." autocomplete="off">
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="email">Email:</label>
+                                                <input type="email" id="email" placeholder="user@amdocs.com" autocomplete="off">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="rn-creation-controls">
+                                    <button id="create-rn-btn" class="btn-primary" disabled>Trigger Storage Job</button>
+                                    <button id="generate-rn-btn" class="btn-secondary" style="display: none; margin-left: 10px;">Generate RN Request</button>
+                                </div>
+
+                                <div id="rn-creation-status" class="rn-creation-status" style="display: none;">
+                                    <div class="status-content">
+                                        <div class="status-indicator">
+                                            <div class="status-icon"></div>
+                                            <span id="rn-creation-status-text">Preparing...</span>
+                                        </div>
+                                        <div id="jenkins-rn-job-link" class="jenkins-link" style="display: none;">
+                                            <a href="#" target="_blank" rel="noopener">View Jenkins Job →</a>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="rn-creation-message" class="status-message" style="display: none;"></div>
+
+                                <!-- RN Request Table Modal -->
+                                <div id="rn-table-modal" class="rn-table-modal" style="display: none;">
+                                    <div class="rn-table-content">
+                                        <div class="rn-table-header">
+                                            <h3>Release Notes Request Template</h3>
+                                            <div class="rn-table-actions">
+                                                <button id="copy-rn-table-btn" class="btn-primary">📋 Copy to Clipboard</button>
+                                                <button id="download-rn-table-btn" class="btn-secondary">📁 Download</button>
+                                                <button id="close-rn-table-btn" class="btn-close">✕</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="rn-table-container">
+                                            <table id="rn-table" class="rn-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Application</th>
+                                                        <th>Defect #</th>
+                                                        <th>Core Patch/Charts</th>
+                                                        <th>Custom ms/Module/VM/Orchestration Zip</th>
+                                                        <th>Commit Id</th>
+                                                        <th>Comments/Instructions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="rn-table-body">
+                                                    <!-- Table content will be dynamically generated here -->
+                                                    <tr>
+                                                        <td>NEO-OSO</td>
+                                                        <td>[To be populated]</td>
+                                                        <td>[To be populated]</td>
+                                                        <td>[To be populated]</td>
+                                                        <td>NA</td>
+                                                        <td>[To be populated]</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        <div id="copy-success-message" class="copy-success-message" style="display: none;">
+                                            ✅ Table copied to clipboard successfully!
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
