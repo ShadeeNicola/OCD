@@ -968,8 +968,8 @@ func fetchOrchestrationFromNexus(branch string) (string, error) {
 		log.Printf("Using branch as-is: %s", normalizedBranch)
 	}
 
-	// Construct Nexus search URL - use wildcard to match version timestamps
-	nexusURL := fmt.Sprintf("https://oss-nexus2.oss.corp.amdocs.aws/service/rest/v1/search?repository=att.maven.snapshot&group=com.amdocs.oss.att.customization&name=att-orchestration&version=10.4-%s*", normalizedBranch)
+	// Use global search and filter results in code (repository param causes empty results)
+	nexusURL := "https://oss-nexus2.oss.corp.amdocs.aws/service/rest/v1/search?q=att-orchestration"
 	log.Printf("Querying Nexus URL: %s", nexusURL)
 
 	// Create HTTP client with aggressive timeout and no SSL verification
@@ -998,7 +998,11 @@ func fetchOrchestrationFromNexus(branch string) (string, error) {
 	// Parse JSON response
 	var nexusResp struct {
 		Items []struct {
-			Assets []struct {
+			Repository string `json:"repository"`
+			Group      string `json:"group"`
+			Name       string `json:"name"`
+			Version    string `json:"version"`
+			Assets     []struct {
 				DownloadURL string `json:"downloadUrl"`
 				Path        string `json:"path"`
 			} `json:"assets"`
@@ -1012,11 +1016,23 @@ func fetchOrchestrationFromNexus(branch string) (string, error) {
 
 	log.Printf("Nexus returned %d items", len(nexusResp.Items))
 
-	// Find the latest src.zip file
+	// Find the latest src.zip file from att.maven.snapshot repository for the specified branch
 	var latestSrcZip string
 	var latestTimestamp string
+	versionPattern := fmt.Sprintf("10.4-%s-", normalizedBranch)
 
 	for _, item := range nexusResp.Items {
+		// Filter to only att.maven.snapshot repository and matching version pattern
+		if item.Repository != "att.maven.snapshot" ||
+			item.Group != "com.amdocs.oss.att.customization" ||
+			item.Name != "att-orchestration" ||
+			!strings.Contains(item.Version, versionPattern) {
+			log.Printf("Skipping item: repository=%s, group=%s, name=%s, version=%s",
+				item.Repository, item.Group, item.Name, item.Version)
+			continue
+		}
+
+		log.Printf("Processing matching item: repository=%s, version=%s", item.Repository, item.Version)
 		log.Printf("Processing item with %d assets", len(item.Assets))
 		for _, asset := range item.Assets {
 			log.Printf("Checking asset: %s", asset.Path)
