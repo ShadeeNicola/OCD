@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"app/internal/progress"
 	"app/internal/ui"
 	"app/internal/version"
+	ocdscripts "deploy-scripts"
 )
 
 func HandleBrowse(w http.ResponseWriter, r *http.Request) {
@@ -82,31 +84,153 @@ func HandleEKSClusters(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use the bash script that follows the same proxy pattern as other scripts
-	scriptPath := "../deploy-scripts/scripts/list-eks-clusters.sh"
-	cmd := exec.Command("bash", scriptPath)
-	output, err := cmd.Output()
+	// DEBUG: Log the start of EKS handler
+	fmt.Printf("[DEBUG] EKS Handler: Starting embedded script execution\n")
+
+	// Use embedded list-eks-clusters.sh script following the same pattern as command_executor.go
+	tempScriptFile, err := os.CreateTemp("", "list-eks-clusters_*.sh")
 	if err != nil {
+		fmt.Printf("[DEBUG] EKS Handler: Failed to create temp file: %v\n", err)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":  false,
-			"message":  "Failed to list EKS clusters: " + err.Error(),
+			"message":  "DEBUG: Failed to create temp script: " + err.Error(),
+			"clusters": []string{},
+		})
+		return
+	}
+	defer tempScriptFile.Close()
+	fmt.Printf("[DEBUG] EKS Handler: Created temp script: %s\n", tempScriptFile.Name())
+
+	scriptBytes, err := ocdscripts.ReadScript("list-eks-clusters.sh")
+	if err != nil {
+		fmt.Printf("[DEBUG] EKS Handler: Failed to read embedded script: %v\n", err)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":  false,
+			"message":  "DEBUG: Failed to read embedded script: " + err.Error(),
+			"clusters": []string{},
+		})
+		return
+	}
+	fmt.Printf("[DEBUG] EKS Handler: Read embedded script, size: %d bytes\n", len(scriptBytes))
+
+	// Convert Windows line endings to Unix line endings for bash compatibility
+	scriptContent := strings.ReplaceAll(string(scriptBytes), "\r\n", "\n")
+	scriptContent = strings.ReplaceAll(scriptContent, "\r", "\n")
+	previewLen := 100
+	if len(scriptContent) < previewLen {
+		previewLen = len(scriptContent)
+	}
+	fmt.Printf("[DEBUG] EKS Handler: Script content preview: %s...\n", scriptContent[:previewLen])
+
+	if _, err := tempScriptFile.Write([]byte(scriptContent)); err != nil {
+		fmt.Printf("[DEBUG] EKS Handler: Failed to write script: %v\n", err)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":  false,
+			"message":  "DEBUG: Failed to write temp script: " + err.Error(),
+			"clusters": []string{},
+		})
+		return
+	}
+	if err := os.Chmod(tempScriptFile.Name(), 0755); err != nil {
+		fmt.Printf("[DEBUG] EKS Handler: Failed to chmod script: %v\n", err)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":  false,
+			"message":  "DEBUG: Failed to chmod temp script: " + err.Error(),
+			"clusters": []string{},
+		})
+		return
+	}
+	fmt.Printf("[DEBUG] EKS Handler: Script written and made executable\n")
+
+	// Build command following the same pattern as command_executor.go
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		if _, err := exec.LookPath("wsl"); err == nil {
+			wslScriptPath := convertToWSLPath(tempScriptFile.Name())
+			cmdString := fmt.Sprintf("proxy on 2>/dev/null || true && bash %s", wslScriptPath)
+			fmt.Printf("[DEBUG] EKS Handler: Executing WSL command: wsl bash -l -c \"%s\"\n", cmdString)
+			cmd = exec.Command("wsl", "bash", "-l", "-c", cmdString)
+		} else {
+			fmt.Printf("[DEBUG] EKS Handler: WSL not available on Windows\n")
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success":  false,
+				"message":  "DEBUG: WSL not available on Windows. Please install WSL to use EKS features",
+				"clusters": []string{},
+			})
+			return
+		}
+	case "linux", "darwin":
+		cmdString := fmt.Sprintf("proxy on 2>/dev/null || true && bash %s", tempScriptFile.Name())
+		fmt.Printf("[DEBUG] EKS Handler: Executing command: bash -l -c \"%s\"\n", cmdString)
+		cmd = exec.Command("bash", "-l", "-c", cmdString)
+	default:
+		fmt.Printf("[DEBUG] EKS Handler: Unsupported OS: %s\n", runtime.GOOS)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":  false,
+			"message":  fmt.Sprintf("DEBUG: Unsupported operating system: %s", runtime.GOOS),
 			"clusters": []string{},
 		})
 		return
 	}
 
+	// Capture both stdout and stderr for debugging
+	output, err := cmd.CombinedOutput()
+	fmt.Printf("[DEBUG] EKS Handler: Command output length: %d bytes\n", len(output))
+	fmt.Printf("[DEBUG] EKS Handler: Command error: %v\n", err)
+	if err != nil {
+		fmt.Printf("[DEBUG] EKS Handler: Full command output: %s\n", string(output))
+	}
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":  false,
+			"message":  "DEBUG: Failed to list EKS clusters: " + err.Error() + " | Output: " + string(output),
+			"clusters": []string{},
+		})
+		return
+	}
+	fmt.Printf("[DEBUG] EKS Handler: Command executed successfully, output: %s\n", string(output))
+
 	// Parse the output to extract cluster names
 	// AWS CLI with --output text returns space/tab-separated values on a single line
+	// Filter out screen size warnings and other noise
 	outputStr := strings.TrimSpace(string(output))
 	var clusters []string
 	if outputStr != "" {
-		// Split by whitespace to handle space or tab-separated cluster names
-		clusterNames := strings.Fields(outputStr)
-		for _, name := range clusterNames {
-			name = strings.TrimSpace(name)
-			if name != "" && !strings.HasPrefix(name, "NAME") {
-				clusters = append(clusters, name)
+		// Split by lines first to filter out screen size warnings
+		lines := strings.Split(outputStr, "\n")
+		var cleanOutput []string
+
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			// Skip screen size warnings and other noise
+			if line != "" &&
+				!strings.Contains(line, "screen size is bogus") &&
+				!strings.Contains(line, "expect trouble") &&
+				!strings.HasPrefix(line, "your ") {
+				cleanOutput = append(cleanOutput, line)
+			}
+		}
+
+		// Now split by whitespace to handle space or tab-separated cluster names
+		for _, cleanLine := range cleanOutput {
+			clusterNames := strings.Fields(cleanLine)
+			for _, name := range clusterNames {
+				name = strings.TrimSpace(name)
+				// Additional filtering: only accept valid cluster name patterns
+				if name != "" &&
+					!strings.HasPrefix(name, "NAME") &&
+					!strings.Contains(name, "x1") && // Filter out screen size fragments
+					len(name) > 2 { // Cluster names should be reasonable length
+					clusters = append(clusters, name)
+				}
 			}
 		}
 	}
@@ -319,4 +443,19 @@ func fetchBranchesFromBitbucketAPI(username, token string) ([]GitBranch, error) 
 	}
 
 	return branches, nil
+}
+
+// convertToWSLPath converts Windows paths to WSL paths - same function as in command_executor.go
+func convertToWSLPath(windowsPath string) string {
+	if runtime.GOOS != "windows" {
+		return windowsPath
+	}
+	wslPath := strings.ReplaceAll(windowsPath, "\\", "/")
+	if strings.HasPrefix(wslPath, "C:") {
+		wslPath = "/mnt/c" + wslPath[2:]
+	} else if len(wslPath) >= 2 && wslPath[1] == ':' {
+		drive := strings.ToLower(string(wslPath[0]))
+		wslPath = "/mnt/" + drive + wslPath[2:]
+	}
+	return wslPath
 }

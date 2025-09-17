@@ -21,12 +21,12 @@ import (
 
 	"app/internal/config"
 	"app/internal/jenkins/types"
+	ocdscripts "deploy-scripts"
 )
 
 // Constants for script paths and configurations
 const (
-	helmChartsScriptPath    = "../deploy-scripts/scripts/get-helm-charts.sh"
-	imageVersionsScriptPath = "../deploy-scripts/scripts/get-image-versions.sh"
+	// Removed external script paths - now using embedded scripts
 	helmChartsScriptName    = "get-helm-charts.sh"
 	imageVersionsScriptName = "get-image-versions.sh"
 
@@ -722,12 +722,12 @@ func (s *RNCreationServiceImpl) extractValueFromDescription(description, key str
 	return ""
 }
 
-// createTempScriptFromPath creates a temporary script with proper line ending handling
-func (s *RNCreationServiceImpl) createTempScriptFromPath(scriptPath, tempDirPrefix, tempScriptName string) (string, string, error) {
-	// Read and normalize script content
-	scriptContent, err := s.readAndNormalizeScript(scriptPath)
+// createTempScriptFromEmbedded creates a temporary script from embedded script with proper line ending handling
+func (s *RNCreationServiceImpl) createTempScriptFromEmbedded(scriptName, tempDirPrefix string) (string, string, error) {
+	// Read and normalize embedded script content
+	scriptContent, err := s.readAndNormalizeEmbeddedScript(scriptName)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read script: %w", err)
+		return "", "", fmt.Errorf("failed to read embedded script: %w", err)
 	}
 
 	// Create temporary directory and script
@@ -736,7 +736,7 @@ func (s *RNCreationServiceImpl) createTempScriptFromPath(scriptPath, tempDirPref
 		return "", "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
 
-	tempScriptPath := filepath.Join(tempDir, tempScriptName)
+	tempScriptPath := filepath.Join(tempDir, scriptName)
 	if err := os.WriteFile(tempScriptPath, []byte(scriptContent), 0755); err != nil {
 		os.RemoveAll(tempDir)
 		return "", "", fmt.Errorf("failed to write temp script: %w", err)
@@ -753,18 +753,17 @@ func (s *RNCreationServiceImpl) createTempScriptFromPath(scriptPath, tempDirPref
 
 // createTempScript creates a temporary script for helm charts with proper line ending handling
 func (s *RNCreationServiceImpl) createTempScript() (string, string, error) {
-	return s.createTempScriptFromPath(
-		helmChartsScriptPath,
-		"helm-charts-script",
+	return s.createTempScriptFromEmbedded(
 		helmChartsScriptName,
+		"helm-charts-script",
 	)
 }
 
-// readAndNormalizeScript reads a script file and normalizes line endings
-func (s *RNCreationServiceImpl) readAndNormalizeScript(scriptPath string) (string, error) {
-	scriptBytes, err := os.ReadFile(scriptPath)
+// readAndNormalizeEmbeddedScript reads an embedded script and normalizes line endings
+func (s *RNCreationServiceImpl) readAndNormalizeEmbeddedScript(scriptName string) (string, error) {
+	scriptBytes, err := ocdscripts.ReadScript(scriptName)
 	if err != nil {
-		return "", fmt.Errorf("failed to read script file: %w", err)
+		return "", fmt.Errorf("failed to read embedded script %s: %w", scriptName, err)
 	}
 
 	// Convert Windows line endings to Unix line endings for bash compatibility
@@ -773,38 +772,44 @@ func (s *RNCreationServiceImpl) readAndNormalizeScript(scriptPath string) (strin
 	return content, nil
 }
 
-// setupSharedScripts copies shared scripts to temp directory with line ending conversion
+// setupSharedScripts copies embedded shared scripts to temp directory with line ending conversion
 func (s *RNCreationServiceImpl) setupSharedScripts(tempDir string) error {
 	tempSharedDir := filepath.Join(tempDir, "shared")
 	if err := os.MkdirAll(tempSharedDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp shared dir: %w", err)
 	}
 
-	sharedScriptsDir := "../deploy-scripts/scripts/shared"
-	sharedFiles, err := filepath.Glob(filepath.Join(sharedScriptsDir, "*.sh"))
+	// Get list of embedded shared scripts
+	sharedEntries, err := ocdscripts.ReadDir("scripts/shared")
 	if err != nil {
-		return fmt.Errorf("failed to glob shared scripts: %w", err)
+		return fmt.Errorf("failed to read embedded shared scripts directory: %w", err)
 	}
 
-	for _, sharedFile := range sharedFiles {
-		if err := s.copySharedScript(sharedFile, tempSharedDir); err != nil {
-			// Log error but continue with other files
-			log.Printf("Warning: Failed to copy shared script %s: %v", sharedFile, err)
+	for _, entry := range sharedEntries {
+		if strings.HasSuffix(entry.Name(), ".sh") {
+			if err := s.copyEmbeddedSharedScript(entry.Name(), tempSharedDir); err != nil {
+				// Log error but continue with other files
+				log.Printf("Warning: Failed to copy embedded shared script %s: %v", entry.Name(), err)
+			}
 		}
 	}
 
 	return nil
 }
 
-// copySharedScript copies a single shared script with line ending conversion
-func (s *RNCreationServiceImpl) copySharedScript(srcPath, destDir string) error {
-	content, err := s.readAndNormalizeScript(srcPath)
+// copyEmbeddedSharedScript copies a single embedded shared script with line ending conversion
+func (s *RNCreationServiceImpl) copyEmbeddedSharedScript(scriptName, destDir string) error {
+	// Read embedded shared script content
+	scriptBytes, err := ocdscripts.ReadShared(scriptName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read embedded shared script %s: %w", scriptName, err)
 	}
 
-	fileName := filepath.Base(srcPath)
-	destPath := filepath.Join(destDir, fileName)
+	// Convert Windows line endings to Unix line endings for bash compatibility
+	content := strings.ReplaceAll(string(scriptBytes), "\r\n", "\n")
+	content = strings.ReplaceAll(content, "\r", "\n")
+
+	destPath := filepath.Join(destDir, scriptName)
 	return os.WriteFile(destPath, []byte(content), 0644)
 }
 
@@ -1066,10 +1071,9 @@ func (s *RNCreationServiceImpl) GetImageVersions(ctx context.Context, clusterNam
 
 // createImageVersionTempScript creates a temporary script for image version retrieval
 func (s *RNCreationServiceImpl) createImageVersionTempScript() (string, string, error) {
-	return s.createTempScriptFromPath(
-		imageVersionsScriptPath,
-		"image-versions-script",
+	return s.createTempScriptFromEmbedded(
 		imageVersionsScriptName,
+		"image-versions-script",
 	)
 }
 
