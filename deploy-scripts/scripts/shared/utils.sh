@@ -375,16 +375,21 @@ update_docker_tag_in_settings() {
 }
 
 auto_update_docker_settings() {
-    # Update Docker host IP
-    local corp_ip=$(get_corporate_ip)
-    if [[ $? -eq 0 && -n "$corp_ip" ]]; then
-        if ! update_docker_host_in_settings "$corp_ip"; then
-            write_colored_output "Error: Failed to update Docker host IP in settings.xml" "red"
+    # Update Docker host IP (skip for macOS since settings.xml structure is different)
+    if [[ "$RUNTIME_ENV" != "MACOS" ]]; then
+        local corp_ip=$(get_corporate_ip)
+        if [[ $? -eq 0 && -n "$corp_ip" ]]; then
+            if ! update_docker_host_in_settings "$corp_ip"; then
+                write_colored_output "Error: Failed to update Docker host IP in settings.xml" "red"
+                exit 1
+            fi
+        else
+            write_colored_output "Error: Could not detect corporate IP address" "red"
             exit 1
         fi
     else
-        write_colored_output "Error: Could not detect corporate IP address" "red"
-        exit 1
+        write_colored_output "Skipping Docker host IP update on macOS (uses unix socket)" "yellow"
+        corp_ip="N/A (macOS)"
     fi
 
     # Update Docker tag
@@ -399,7 +404,11 @@ auto_update_docker_settings() {
         exit 1
     fi
 
-    write_colored_output "Maven Settings XML Updated (IP: $corp_ip, Tag: $docker_tag)" "green"
+    if [[ "$RUNTIME_ENV" != "MACOS" ]]; then
+        write_colored_output "Maven Settings XML Updated (IP: $corp_ip, Tag: $docker_tag)" "green"
+    else
+        write_colored_output "Maven Settings XML Updated (Tag: $docker_tag)" "green"
+    fi
 }
 
 # =============================================================================
