@@ -110,7 +110,7 @@ func (s *ScalingServiceImpl) GetScaleJobStatus(ctx context.Context, jobNumber in
 	}
 
 	// Construct the API URL for the specific job
-	apiURL := fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown2/%d/api/json", 
+	apiURL := fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown/%d/api/json",
 		s.client.GetBaseURL(), jobNumber)
 
 	// Get job status from Jenkins API
@@ -240,19 +240,19 @@ func (s *ScalingServiceImpl) getScalingJobURL() (string, error) {
 	baseURL := s.client.GetBaseURL()
 	// This uses the hardcoded path from the configuration
 	// In a real implementation, this would come from the jobs.yaml config
-	return fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown2/buildWithParameters", baseURL), nil
+	return fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown/buildWithParameters", baseURL), nil
 }
 
 // parseJobStatusResponse parses the JSON response from Jenkins job status API
 func (s *ScalingServiceImpl) parseJobStatusResponse(data []byte) (*types.JobStatus, error) {
 	var jenkinsResp struct {
-		Number           int    `json:"number"`
-		Result           string `json:"result"`
-		Building         bool   `json:"building"`
-		Duration         int64  `json:"duration"`
-		URL              string `json:"url"`
-		FullDisplayName  string `json:"fullDisplayName"`
-		Timestamp        int64  `json:"timestamp"`
+		Number            int    `json:"number"`
+		Result            string `json:"result"`
+		Building          bool   `json:"building"`
+		Duration          int64  `json:"duration"`
+		URL               string `json:"url"`
+		FullDisplayName   string `json:"fullDisplayName"`
+		Timestamp         int64  `json:"timestamp"`
 		EstimatedDuration int64  `json:"estimatedDuration"`
 	}
 
@@ -288,7 +288,7 @@ func (s *ScalingServiceImpl) parseJobStatusResponse(data []byte) (*types.JobStat
 	if jenkinsResp.Timestamp > 0 {
 		t := time.Unix(jenkinsResp.Timestamp/1000, 0)
 		startTime = &t
-		
+
 		if !jenkinsResp.Building && jenkinsResp.Duration > 0 {
 			et := t.Add(time.Duration(jenkinsResp.Duration) * time.Millisecond)
 			endTime = &et

@@ -44,19 +44,37 @@ async function handleScaleAction(scaleType) {
         );
 
         const results = await Promise.allSettled(scalingPromises);
-        
+
         const successful = results.filter(r => r.status === 'fulfilled' && r.value.success);
         const failed = results.filter(r => r.status === 'rejected' || !r.value.success);
+
+        console.log(`[SCALING] Results summary:`, {
+            total: selectedClusters.length,
+            successful: successful.length,
+            failed: failed.length,
+            failedReasons: failed.map(f => ({
+                status: f.status,
+                reason: f.status === 'rejected' ? f.reason.message : 'Success=false in response',
+                value: f.status === 'fulfilled' ? f.value : undefined
+            }))
+        });
 
         if (successful.length === selectedClusters.length) {
             const clusterNames = selectedClusters.join(', ');
             showScalingMessage(`Successfully triggered scale up for ${clusterNames}!`, 'success');
             showScalingStatus('success', `Scale up triggered for ${clusterNames}`);
         } else if (successful.length > 0) {
+            const failedClusters = failed.map(f => f.status === 'rejected' ? 'Unknown' : 'Response error');
+            console.warn(`[SCALING] Partial failure - failed clusters:`, failedClusters);
             showScalingMessage(`Scale up triggered for ${successful.length}/${clusterCount} clusters`, 'warning');
             showScalingStatus('warning', `Partial success: ${successful.length}/${clusterCount} clusters`);
         } else {
-            throw new Error('Failed to trigger scaling for any clusters');
+            // Collect all error messages for detailed logging
+            const errorMessages = failed.map(f =>
+                f.status === 'rejected' ? f.reason.message : 'Success=false in response'
+            );
+            console.error(`[SCALING] All clusters failed. Errors:`, errorMessages);
+            throw new Error(`Failed to trigger scaling for any clusters. Errors: ${errorMessages.join(', ')}`);
         }
 
         // Show the first successful Jenkins link and start polling for queue updates
@@ -105,6 +123,9 @@ async function triggerClusterScale(clusterName, scaleType, credentials) {
         requestBody.token = credentials.token;
     }
 
+    console.log(`[SCALING] Attempting to scale ${scaleType} cluster: ${clusterName}`);
+    console.log(`[SCALING] Request payload:`, requestBody);
+
     const response = await fetch('/api/jenkins/scale', {
         method: 'POST',
         headers: {
@@ -114,11 +135,27 @@ async function triggerClusterScale(clusterName, scaleType, credentials) {
     });
 
     const result = await response.json();
+    console.log(`[SCALING] Response for cluster ${clusterName}:`, {
+        status: response.status,
+        ok: response.ok,
+        result: result
+    });
 
     if (!response.ok) {
-        throw new Error(result.message || `HTTP ${response.status}`);
+        const errorMsg = result.message || `HTTP ${response.status}`;
+        console.error(`[SCALING] Failed to scale cluster ${clusterName}:`, errorMsg);
+        console.error(`[SCALING] Full error response:`, result);
+        throw new Error(`${clusterName}: ${errorMsg}`);
     }
 
+    if (!result.success) {
+        const errorMsg = result.message || 'Unknown error';
+        console.error(`[SCALING] Scaling failed for cluster ${clusterName}:`, errorMsg);
+        console.error(`[SCALING] Full error response:`, result);
+        throw new Error(`${clusterName}: ${errorMsg}`);
+    }
+
+    console.log(`[SCALING] Successfully triggered scaling for cluster ${clusterName}`);
     return result;
 }
 

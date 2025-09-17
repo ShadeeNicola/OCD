@@ -245,7 +245,7 @@
     margin-top: 1.5rem;
     padding: 1rem;
     border-radius: 8px;
-    background: var(--surface-alt);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
 }
 
@@ -490,7 +490,7 @@
 }
 
 .rn-table-content {
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     max-width: 95%;
@@ -519,7 +519,7 @@
     align-items: center;
     padding: 24px;
     border-bottom: 1px solid var(--border-color);
-    background: var(--surface-alt);
+    background: var(--bg-secondary);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -560,13 +560,13 @@
 }
 
 .rn-table-actions .btn-secondary {
-    background: var(--surface-secondary);
+    background: var(--bg-card);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
 }
 
 .rn-table-actions .btn-secondary:hover {
-    background: var(--surface-alt);
+    background: var(--bg-card-hover);
     border-color: var(--accent-primary);
 }
 
@@ -594,14 +594,14 @@
     flex: 1;
     overflow: auto;
     padding: 24px;
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
 }
 
 .rn-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
-    background: var(--surface-primary);
+    background: var(--bg-secondary);
     border-radius: var(--radius-md);
     overflow: hidden;
 }
@@ -615,7 +615,7 @@
 }
 
 .rn-table th {
-    background: linear-gradient(135deg, var(--surface-alt) 0%, rgba(74, 158, 255, 0.08) 100%);
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(74, 158, 255, 0.08) 100%);
     border-bottom: 2px solid rgba(74, 158, 255, 0.2);
     font-weight: 600;
     color: var(--text-primary);
@@ -630,11 +630,11 @@
     word-wrap: break-word;
     max-width: 200px;
     color: var(--text-primary);
-    background: var(--surface-primary);
+    background: var(--bg-secondary);
 }
 
 .rn-table tr:nth-child(even) td {
-    background: var(--surface-secondary);
+    background: var(--bg-card);
 }
 
 .rn-table tr:hover td {

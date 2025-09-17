@@ -8,6 +8,10 @@
 detect_environment() {
     if [[ -n "$WSL_DISTRO_NAME" ]] || [[ "$(uname -r)" == *microsoft* ]] || [[ "$(uname -r)" == *WSL* ]]; then
         echo "WSL"
+    elif [[ "$(uname)" == "Darwin" ]]; then
+        echo "MACOS"
+    elif [[ "$(uname)" == "Linux" ]]; then
+        echo "LINUX"
     else
         echo "WINDOWS"
     fi
@@ -60,6 +64,9 @@ convert_to_windows_path() {
 
     if [[ "$RUNTIME_ENV" == "WSL" ]]; then
         wslpath -w "$input_path"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        # On Unix-like systems, return the path as-is
+        echo "$input_path"
     else
         echo "$input_path" | sed 's|^/c/|C:\\|' | sed 's|/|\\|g'
     fi
@@ -282,6 +289,13 @@ update_docker_host_in_settings() {
     local settings_file_path=""
     if [[ "$RUNTIME_ENV" == "WSL" ]]; then
         settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        settings_file_path="$MAVEN_SETTINGS_PATH"
+
+        if [[ -z "$settings_file_path" || ! -f "$settings_file_path" ]]; then
+            write_colored_output "Warning: No Maven settings available, skipping Docker host update" "yellow"
+            return 0
+        fi
     else
         settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
     fi
@@ -322,6 +336,13 @@ update_docker_tag_in_settings() {
     local settings_file_path=""
     if [[ "$RUNTIME_ENV" == "WSL" ]]; then
         settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        settings_file_path="$MAVEN_SETTINGS_PATH"
+
+        if [[ -z "$settings_file_path" || ! -f "$settings_file_path" ]]; then
+            write_colored_output "Warning: No Maven settings available, skipping Docker tag update" "yellow"
+            return 0
+        fi
     else
         settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
     fi
@@ -389,6 +410,14 @@ auto_update_docker_settings() {
 get_powershell_executable() {
     if [[ "$RUNTIME_ENV" == "WSL" ]]; then
         echo "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        # PowerShell Core is available on macOS/Linux
+        if command -v pwsh &> /dev/null; then
+            echo "pwsh"
+        else
+            write_colored_output "Warning: PowerShell not available on this platform" "yellow"
+            echo ""
+        fi
     else
         echo "/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
     fi
@@ -396,15 +425,24 @@ get_powershell_executable() {
 
 # Build Maven command for PowerShell execution with verbose/quiet support
 build_maven_command() {
-    local target_windows_path="$1"
+    local target_path="$1"
     local additional_flags="${2:-}"
-    
-    local base_command="Set-Location '$target_windows_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
-    
+
+    if [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        # Unix-style command
+        local base_command="cd '$target_path' && mvn clean install -DskipTests"
+        if [[ -n "$MAVEN_SETTINGS_PATH" ]]; then
+            base_command="$base_command -s '$MAVEN_SETTINGS_PATH'"
+        fi
+    else
+        # PowerShell command for Windows/WSL
+        local base_command="Set-Location '$target_path'; mvn clean install -DskipTests -s '$MAVEN_SETTINGS_PATH'"
+    fi
+
     if [[ -n "$additional_flags" ]]; then
         base_command="$base_command $additional_flags"
     fi
-    
+
     if [[ "$VERBOSE" == "true" ]]; then
         echo "$base_command"
     else
@@ -414,26 +452,43 @@ build_maven_command() {
 
 # Execute Maven command with PowerShell, with verbose/quiet fallback
 execute_maven_with_fallback() {
-    local ps_executable="$1"
-    local ps_command="$2"
+    local executable="$1"
+    local command="$2"
     local service_name="$3"
-    
+
     # Set proper encoding for Maven builds
     export LANG=C.UTF-8
     export LC_ALL=C.UTF-8
-    
+
     write_colored_output "Building $service_name..." "blue"
-    
-    if [[ "$VERBOSE" == "true" ]]; then
-        "$ps_executable" -Command "$ps_command"
-        local exit_code=$?
+
+    if [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        # Execute bash command directly
+        if [[ "$VERBOSE" == "true" ]]; then
+            eval "$command"
+            local exit_code=$?
+        else
+            local output=$(eval "$command" 2>&1)
+            local exit_code=$?
+            if [[ $exit_code -ne 0 ]]; then
+                write_colored_output "Build failed with quiet mode. Retrying with verbose output..." "yellow"
+                eval "${command% -q}"
+                exit_code=$?
+            fi
+        fi
     else
-        local output=$("$ps_executable" -Command "$ps_command" 2>&1)
-        local exit_code=$?
-        if [[ $exit_code -ne 0 ]]; then
-            write_colored_output "Build failed with quiet mode. Retrying with verbose output..." "yellow"
-            "$ps_executable" -Command "${ps_command% -q}"
-            exit_code=$?
+        # Execute PowerShell command
+        if [[ "$VERBOSE" == "true" ]]; then
+            "$executable" -Command "$command"
+            local exit_code=$?
+        else
+            local output=$("$executable" -Command "$command" 2>&1)
+            local exit_code=$?
+            if [[ $exit_code -ne 0 ]]; then
+                write_colored_output "Build failed with quiet mode. Retrying with verbose output..." "yellow"
+                "$executable" -Command "${command% -q}"
+                exit_code=$?
+            fi
         fi
     fi
     

@@ -251,11 +251,11 @@
                                         <h4>How to get your Jenkins API Token:</h4>
                                         <ol>
                                             <li>Go to <a href="https://jenkins-delivery.oss.corp.amdocs.aws/" target="_blank" rel="noopener">Jenkins</a> and log in</li>
-                                            <li>Click your username → <strong>Configure</strong></li>
-                                            <li>Scroll to <strong>API Token</strong> section</li>
-                                            <li>Click <strong>Add new Token</strong></li>
-                                            <li>Enter name (e.g., "OCD-Token") → <strong>Generate</strong></li>
-                                            <li>Copy the generated token and paste it above</li>
+                                            <li>Click your username (upper-right corner) → <strong>Security</strong></li>
+                                            <li>Click <strong>Add new Token</strong> button</li>
+                                            <li>Enter a descriptive name (e.g., "OCD-Token") → click <strong>Generate</strong></li>
+                                            <li><strong>Important:</strong> Copy the generated token immediately and paste it above</li>
+                                            <li><em>Note:</em> You cannot view the token again after this step</li>
                                         </ol>
                                         <div class="security-note">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -427,6 +427,8 @@
                                                 <label for="core-version">Core Version:</label>
                                                 <select id="core-version">
                                                     <option value="">Select version...</option>
+                                                    <option value="2509">2509</option>
+                                                    <option value="2506">2506</option>
                                                     <option value="2503">2503</option>
                                                     <option value="2412">2412</option>
                                                     <option value="2409">2409</option>
@@ -483,7 +485,7 @@
 
                                 <div class="rn-creation-controls">
                                     <button id="create-rn-btn" class="btn-primary" disabled>Trigger Storage Job</button>
-                                    <button id="generate-rn-btn" class="btn-secondary" style="display: none; margin-left: 10px;">Generate RN Request</button>
+                                    <button id="generate-rn-btn" class="btn-primary" style="margin-left: 10px;">Generate RN Request</button>
                                 </div>
 
                                 <div id="rn-creation-status" class="rn-creation-status" style="display: none;">

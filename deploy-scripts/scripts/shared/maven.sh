@@ -20,7 +20,25 @@ get_maven_settings() {
             write_colored_output "Error: Maven settings.xml not found at /mnt/c/Users/$user/.m2/settings.xml" "red"
             exit 1
         fi
+
+        WINDOWS_USER="$user"
+        MAVEN_SETTINGS_PATH="C:\\Users\\$user\\.m2\\settings.xml"
+        write_colored_output "Found Maven settings at: $MAVEN_SETTINGS_PATH" "green"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        # Use standard Unix/Linux Maven settings path
+        local settings_path="$HOME/.m2/settings.xml"
+
+        if [[ ! -f "$settings_path" ]]; then
+            write_colored_output "Warning: Maven settings.xml not found at $settings_path" "yellow"
+            write_colored_output "Maven will use default configuration" "yellow"
+            MAVEN_SETTINGS_PATH=""
+            return 0
+        fi
+
+        MAVEN_SETTINGS_PATH="$settings_path"
+        write_colored_output "Found Maven settings at: $MAVEN_SETTINGS_PATH" "green"
     else
+        # Windows (Git Bash or similar)
         local user=$(ls -1 /c/Users | grep -vE '^(Public|Default|desktop.ini|Default\ User|ADMINI~1|All\ Users)$' | head -n 1)
 
         if [[ -z "$user" ]]; then
@@ -32,11 +50,11 @@ get_maven_settings() {
             write_colored_output "Error: Maven settings.xml not found at /c/Users/$user/.m2/settings.xml" "red"
             exit 1
         fi
-    fi
 
-    WINDOWS_USER="$user"
-    MAVEN_SETTINGS_PATH="C:\\Users\\$user\\.m2\\settings.xml"
-    write_colored_output "Found Maven settings at: $MAVEN_SETTINGS_PATH" "green"
+        WINDOWS_USER="$user"
+        MAVEN_SETTINGS_PATH="C:\\Users\\$user\\.m2\\settings.xml"
+        write_colored_output "Found Maven settings at: $MAVEN_SETTINGS_PATH" "green"
+    fi
 }
 
 # =============================================================================
@@ -45,8 +63,18 @@ get_maven_settings() {
 
 get_registry_and_tag_from_settings() {
     local settings_file_path=""
+
     if [[ "$RUNTIME_ENV" == "WSL" ]]; then
         settings_file_path="/mnt/c/Users/$WINDOWS_USER/.m2/settings.xml"
+    elif [[ "$RUNTIME_ENV" == "MACOS" || "$RUNTIME_ENV" == "LINUX" ]]; then
+        settings_file_path="$MAVEN_SETTINGS_PATH"
+
+        # If no Maven settings available, return defaults or fail gracefully
+        if [[ -z "$settings_file_path" || ! -f "$settings_file_path" ]]; then
+            write_colored_output "Warning: No Maven settings available, using default Docker registry settings" "yellow"
+            echo "docker.io|latest"
+            return 0
+        fi
     else
         settings_file_path="/c/Users/$WINDOWS_USER/.m2/settings.xml"
     fi

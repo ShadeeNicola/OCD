@@ -60,16 +60,7 @@ discover_microservices() {
         done
     fi
 
-    # Find microservices in helm/charts/ directory
-    if [[ -d "helm/charts/" ]]; then
-        for chart_dir in helm/charts/*/; do
-            if [[ -d "$chart_dir" ]]; then
-                local dir_name=$(basename "$chart_dir")
-                local ms_name=$(echo "$dir_name" | sed -E 's/(-deploy)$//')
-                microservices+=("$ms_name")
-            fi
-        done
-    fi
+    # Skip helm/charts/ directory - these are deployment configs, not buildable microservices
 
     # Find standalone microservice directories
     for top_dir in */; do
@@ -89,12 +80,17 @@ discover_microservices() {
 
 find_microservice_for_file() {
     local file_path="$1"
+
+    # Skip helm chart changes - these don't trigger microservice builds
+    if [[ "$file_path" =~ ^helm/ ]]; then
+        return
+    fi
+
     local all_microservices=($(discover_microservices))
 
     for ms_name in "${all_microservices[@]}"; do
         if [[ "$file_path" =~ ^${ms_name}(-ms)?/ ]] || \
-           [[ "$file_path" =~ ^dockers/${ms_name}(-img|-img-job|-app)?/ ]] || \
-           [[ "$file_path" =~ ^helm/charts/${ms_name}(-deploy)?/ ]]; then
+           [[ "$file_path" =~ ^dockers/${ms_name}(-img|-img-job|-app)?/ ]]; then
             echo "$ms_name"
             return
         fi
@@ -134,15 +130,47 @@ build_microservice() {
     local microservice_name="$1"
     write_colored_output "Building microservice: $microservice_name" "blue"
 
-    # Determine the correct directory
+    # Determine the correct directory with flexible matching
     local build_dir=""
     if [[ -d "${microservice_name}-ms" ]]; then
         build_dir="${microservice_name}-ms"
     elif [[ -d "$microservice_name" ]]; then
         build_dir="$microservice_name"
     else
-        write_colored_output "Error: Could not find directory for $microservice_name" "red"
-        return 1
+        # Try multiple patterns to find matching directories
+        local matching_dirs=()
+
+        # Try pattern 1: *microservice_name*-ms (contains the name)
+        local pattern1=($(find . -maxdepth 1 -type d -name "*${microservice_name}*-ms" 2>/dev/null))
+        matching_dirs+=("${pattern1[@]}")
+
+        # Try pattern 2: Extract key parts and search (e.g., for purge-tool-oni, search for *oni*-ms)
+        local key_part=""
+        if [[ "$microservice_name" == *-* ]]; then
+            key_part=$(echo "$microservice_name" | rev | cut -d'-' -f1 | rev)  # Get last part after -
+            local pattern2=($(find . -maxdepth 1 -type d -name "*${key_part}*-ms" 2>/dev/null))
+            matching_dirs+=("${pattern2[@]}")
+        fi
+
+        # Remove duplicates and limit results
+        matching_dirs=($(printf '%s\n' "${matching_dirs[@]}" | sort -u | head -5))
+
+        if [[ ${#matching_dirs[@]} -eq 1 ]]; then
+            build_dir=$(basename "${matching_dirs[0]}")
+            write_colored_output "Found matching directory: $build_dir" "yellow"
+        elif [[ ${#matching_dirs[@]} -gt 1 ]]; then
+            write_colored_output "Multiple directories found matching $microservice_name:" "yellow"
+            for dir in "${matching_dirs[@]}"; do
+                write_colored_output "  - $(basename "$dir")" "yellow"
+            done
+            write_colored_output "Using first match: $(basename "${matching_dirs[0]}")" "yellow"
+            build_dir=$(basename "${matching_dirs[0]}")
+        else
+            write_colored_output "Error: Could not find directory for $microservice_name" "red"
+            write_colored_output "Available directories ending with -ms:" "red"
+            find . -maxdepth 1 -type d -name "*-ms" | sed 's|./||' | sort | head -10
+            return 1
+        fi
     fi
 
     # Get absolute path and convert to Windows path
@@ -162,6 +190,7 @@ build_microservice() {
 get_docker_artifact_name() {
     local microservice_name="$1"
 
+    # First try exact matches
     local docker_pom_paths=(
         "dockers/${microservice_name}-img/pom.xml"
         "dockers/${microservice_name}-app/pom.xml"
@@ -170,7 +199,6 @@ get_docker_artifact_name() {
 
     for pom_path in "${docker_pom_paths[@]}"; do
         if [[ -f "$pom_path" ]]; then
-            # Use awk to properly parse the XML and get the project's artifactId (not parent's)
             local artifact_id=$(awk '
                 /<parent>/,/<\/parent>/ { next }
                 /<artifactId>/ {
@@ -189,6 +217,56 @@ get_docker_artifact_name() {
         fi
     done
 
+    # If no exact match, try pattern-based search similar to build_docker_image function
+    if [[ -d "dockers/" ]]; then
+        write_colored_output "No exact Docker pom.xml match found for $microservice_name, trying pattern matching..." "yellow" >&2
+
+        # Extract key part from microservice name for pattern matching
+        local key_part=""
+        if [[ "$microservice_name" == *-* ]]; then
+            key_part=$(echo "$microservice_name" | rev | cut -d'-' -f1 | rev)
+        else
+            key_part="$microservice_name"
+        fi
+
+        # Try pattern matching in dockers directory
+        local matching_docker_dirs=($(find dockers/ -maxdepth 1 -type d -name "*${key_part}*-app" -o -name "*${key_part}*-img" 2>/dev/null | head -3))
+
+        for docker_dir in "${matching_docker_dirs[@]}"; do
+            local pom_path="$docker_dir/pom.xml"
+            if [[ -f "$pom_path" ]]; then
+                write_colored_output "Found matching Docker directory: $docker_dir" "yellow" >&2
+                local artifact_id=$(awk '
+                    /<parent>/,/<\/parent>/ { next }
+                    /<artifactId>/ {
+                        gsub(/.*<artifactId>/, "")
+                        gsub(/<\/artifactId>.*/, "")
+                        gsub(/^[ \t]+|[ \t]+$/, "")
+                        print
+                        exit
+                    }
+                ' "$pom_path")
+
+                if [[ -n "$artifact_id" && "$artifact_id" != "artifactId" ]]; then
+                    write_colored_output "Found Docker artifact name: $artifact_id" "green" >&2
+                    echo "$artifact_id"
+                    return 0
+                fi
+            fi
+        done
+    fi
+
+    write_colored_output "Error: Could not find Docker artifact name for microservice: $microservice_name" "red" >&2
+    write_colored_output "Searched in:" "red" >&2
+    for pom_path in "${docker_pom_paths[@]}"; do
+        write_colored_output "  - $pom_path" "red" >&2
+    done
+    if [[ -d "dockers/" ]]; then
+        write_colored_output "Available Docker directories:" "red" >&2
+        find dockers/ -maxdepth 1 -type d -name "*-app" -o -name "*-img" 2>/dev/null | head -10 | while read dir; do
+            write_colored_output "  - $dir" "red" >&2
+        done
+    fi
     return 1
 }
 
@@ -205,6 +283,7 @@ build_docker_image() {
         "dockers/${microservice_name}"
     )
 
+    # Try exact matches first
     for docker_dir in "${docker_pom_paths[@]}"; do
         if [[ -d "$docker_dir" && -f "$docker_dir/pom.xml" ]]; then
             docker_build_dir="$docker_dir"
@@ -212,8 +291,30 @@ build_docker_image() {
         fi
     done
 
+    # If no exact match, try flexible pattern matching
+    if [[ -z "$docker_build_dir" ]]; then
+        # Extract key part from microservice name for pattern matching
+        local key_part=""
+        if [[ "$microservice_name" == *-* ]]; then
+            key_part=$(echo "$microservice_name" | rev | cut -d'-' -f1 | rev)
+        fi
+
+        # Try pattern matching in dockers directory
+        local matching_docker_dirs=($(find dockers/ -maxdepth 1 -type d -name "*${key_part}*-app" -o -name "*${key_part}*-img" 2>/dev/null | head -3))
+
+        for docker_dir in "${matching_docker_dirs[@]}"; do
+            if [[ -f "$docker_dir/pom.xml" ]]; then
+                docker_build_dir="$docker_dir"
+                write_colored_output "Found matching Docker directory: $docker_build_dir" "yellow"
+                break
+            fi
+        done
+    fi
+
     if [[ -z "$docker_build_dir" ]]; then
         write_colored_output "Error: Could not find Docker directory for $microservice_name" "red"
+        write_colored_output "Available Docker directories:" "red"
+        find dockers/ -maxdepth 1 -type d -name "*-app" -o -name "*-img" 2>/dev/null | head -10
         return 1
     fi
 
@@ -261,35 +362,45 @@ update_kubernetes_microservice() {
 
     write_colored_output "Updating Kubernetes microservice $microservice_name with image: $image_tag" "blue"
 
-    # Try different service naming patterns
-    local service_names=(
-            "${namespace}-${microservice_name}"
-            "${microservice_name}-service"
-            "${microservice_name}"
-            "${microservice_name}-ms"
-            "${microservice_name}-app"
-        )
-
     local found_service=""
 
-    # Try to find the service with different naming patterns
-    for service_name in "${service_names[@]}"; do
-        log_command "kubectl get microservice '$service_name' -n '$namespace'"
+    # Search for microservice by pattern matching instead of hardcoded guesses
+    write_colored_output "Searching for microservice containing '$microservice_name' in namespace '$namespace'..." "blue"
 
-        # Enable proxy and run kubectl command
-        if bash -l -c "proxy on 2>/dev/null || true && kubectl get microservice '$service_name' -n '$namespace' --no-headers" > /dev/null 2>&1; then
-            found_service="$service_name"
-            write_colored_output "Found microservice: $found_service" "green"
-            break
-        fi
-    done
+    # Get all microservices and filter by pattern
+    local all_services=$(bash -l -c "proxy on 2>/dev/null || true && kubectl get microservice -n '$namespace' --no-headers -o custom-columns=NAME:.metadata.name" 2>/dev/null || echo "")
+
+    if [[ -n "$all_services" ]]; then
+        # Try to find a service that contains key parts of the microservice name
+        local key_parts=($(echo "$microservice_name" | tr '-' ' '))
+
+        for service in $all_services; do
+            local match_count=0
+            for part in "${key_parts[@]}"; do
+                if [[ "$service" == *"$part"* ]]; then
+                    ((match_count++))
+                fi
+            done
+
+            # If most parts match, use this service
+            if [[ $match_count -ge $((${#key_parts[@]} - 1)) ]]; then
+                found_service="$service"
+                write_colored_output "Found microservice: $found_service (matched $match_count/${#key_parts[@]} parts)" "green"
+                break
+            fi
+        done
+    fi
 
     if [[ -z "$found_service" ]]; then
-        write_colored_output "Error: Could not find microservice for $microservice_name in namespace $namespace" "red"
-        write_colored_output "Tried the following service names:" "red"
-        for service_name in "${service_names[@]}"; do
-            write_colored_output "  - $service_name" "red"
-        done
+        write_colored_output "Error: Could not find microservice matching '$microservice_name' in namespace '$namespace'" "red"
+        write_colored_output "Available microservices in namespace:" "red"
+        if [[ -n "$all_services" ]]; then
+            echo "$all_services" | head -20 | while read service; do
+                write_colored_output "  - $service" "red"
+            done
+        else
+            write_colored_output "  No microservices found or kubectl access failed" "red"
+        fi
         return 1
     fi
 
@@ -463,7 +574,7 @@ for microservice in "${changed_microservices[@]}"; do
         fi
 
         # Format the microservice name with padding
-        local formatted_ms=$(printf "%-20s" "$microservice")
+        formatted_ms=$(printf "%-20s" "$microservice")
 
         if [[ ("$build_status" == "SUCCESS" || "$build_status" == "SKIPPED") && ("$deploy_status" == "SUCCESS" || "$deploy_status" == "SKIPPED") ]]; then
             write_colored_output "    $formatted_ms │ Build: $build_status │ Deploy: $deploy_status" "green"

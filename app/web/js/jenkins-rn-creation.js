@@ -4,6 +4,7 @@ import { areCredentialsConfigured, showSetupModal, getSavedCredentials, getSaved
 let currentJobNumber = null;
 let currentQueueURL = null;
 let statusPollingInterval = null;
+let storageJobURL = null;
 
 export function initializeRNCreation() {
     const triggerBtn = document.getElementById('create-rn-btn');
@@ -17,8 +18,7 @@ export function initializeRNCreation() {
 
     if (generateRNBtn) {
         generateRNBtn.addEventListener('click', () => openRNTableModal());
-        // Initially hidden until job succeeds
-        generateRNBtn.style.display = 'none';
+        // Button is now always visible
     }
 
     // Initialize RN table modal functionality
@@ -58,22 +58,33 @@ async function handleTriggerStorageJob() {
             showRNMessage('Storage job triggered successfully!', 'success');
             showRNStatus('success', 'Storage job triggered successfully');
             
-            // Show the "Generate RN Request" button
-            showGenerateRNButton();
+            // Don't show Generate RN button yet - wait for job to get build number
             
-            // Show Jenkins link
+            console.log('DEBUG: Initial response job_status:', response.job_status);
+            
+            // Show Jenkins link but don't overwrite storageJobURL yet (wait for build number)
             if (response.job_url) {
                 showJenkinsLink(response.job_url);
+                // Don't set storageJobURL here as it doesn't have build number yet
+                console.log('DEBUG: Received base job_url (without build number):', response.job_url);
             }
             
-            // If we have job status with queue URL, start polling
-            if (response.job_status?.url?.includes('/queue/item/')) {
-                currentQueueURL = response.job_status.url;
-                startQueuePolling();
-            } else if (response.job_status?.number) {
-                currentJobNumber = response.job_status.number;
-                startStatusPolling();
-            }
+            // If job is queued, start polling regardless of URL format
+            console.log('DEBUG: Job status:', response.job_status?.status, 'Number:', response.job_status?.number);
+            // Simple approach: wait 3 seconds then get latest build number directly from Jenkins
+            console.log('DEBUG: Waiting 3 seconds then fetching latest build number...');
+            setTimeout(async () => {
+                await getLatestBuildNumber();
+            }, 3000);
+        } else if (response.job_status?.number && response.job_status.number > 0) {
+            currentJobNumber = response.job_status.number;
+            // Set storage job URL with build number
+            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
+            console.log('DEBUG: Set storageJobURL with build number from initial response:', storageJobURL);
+
+            // Show Generate RN button since we have the build number
+            showGenerateRNButton();
+            // Don't start status polling - we have the build number already
         } else {
             throw new Error(response.message || 'Failed to trigger storage job');
         }
@@ -155,122 +166,63 @@ function validateFormData(formData) {
     };
 }
 
-function startQueuePolling() {
-    if (!currentQueueURL) return;
+// Queue polling removed - using simple 3-second approach instead
 
-    // Clear any existing polling
-    if (statusPollingInterval) {
-        clearInterval(statusPollingInterval);
-    }
+// Status polling removed - we use simple direct Jenkins API approach instead
 
-    // Poll every 5 seconds
-    statusPollingInterval = setInterval(async () => {
-        try {
-            const credentials = getSavedCredentials();
-            if (!credentials) {
-                console.error('No credentials available for queue polling');
-                return;
-            }
-
-            const response = await fetch('/api/jenkins/queue-status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    queue_url: currentQueueURL,
-                    username: credentials.username,
-                    token: credentials.token
-                })
-            });
-            const result = await response.json();
-
-            if (result.success && result.job_status) {
-                const status = result.job_status.status;
-                const description = result.job_status.description;
-
-                updateRNStatus(status, description);
-
-                // If job has started, switch to regular polling
-                if (result.job_status.number && result.job_status.url && !result.job_status.url.includes('/queue/item/')) {
-                    currentJobNumber = result.job_status.number;
-                    currentQueueURL = null;
-                    
-                    showJenkinsLink(result.job_status.url);
-                    
-                    clearInterval(statusPollingInterval);
-                    startStatusPolling();
-                    return;
-                }
-
-                // Stop polling if job failed
-                if (status === 'failed') {
-                    clearInterval(statusPollingInterval);
-                    statusPollingInterval = null;
-                    setTriggerButtonState(false);
-                    showRNMessage('Storage job was cancelled or failed.', 'error');
-                }
-            }
-        } catch (error) {
-            console.error('Queue polling error:', error);
+async function getLatestBuildNumber() {
+    try {
+        const credentials = getSavedCredentials();
+        if (!credentials) {
+            console.error('No credentials available for getting build number');
+            return;
         }
-    }, 5000);
-}
 
-function startStatusPolling() {
-    if (!currentJobNumber) return;
+        // Get the last triggered storage job parameters to match against builds
+        const selectedBranch = getSelectedBranch();
+        const formData = gatherFormData(selectedBranch);
 
-    // Clear any existing polling
-    if (statusPollingInterval) {
-        clearInterval(statusPollingInterval);
-    }
+        console.log('DEBUG: Frontend trigger parameters:', {
+            product: formData.product,
+            core_version: formData.core_version,
+            branch_name: formData.branch_name,
+            custom_orch_zip_url: formData.custom_orch_zip_url,
+            oni_image: formData.oni_image
+        });
 
-    // Poll every 10 seconds
-    statusPollingInterval = setInterval(async () => {
-        try {
-            const credentials = getSavedCredentials();
-            if (!credentials) {
-                console.error('No credentials available for status polling');
-                return;
-            }
+        // Call Jenkins API with trigger parameters for matching
+        const params = new URLSearchParams({
+            build_url: 'http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation',
+            username: credentials.username,
+            token: credentials.token,
+            product: formData.product,
+            core_version: formData.core_version,
+            branch_name: formData.branch_name,
+            custom_orch_zip_url: formData.custom_orch_zip_url,
+            oni_image: formData.oni_image
+        });
 
-            const response = await fetch('/api/jenkins/status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    job_number: currentJobNumber,
-                    username: credentials.username,
-                    token: credentials.token
-                })
-            });
-            const result = await response.json();
+        console.log('DEBUG: API URL:', `/api/jenkins/build-info?${params.toString()}`);
 
-            if (result.success && result.job_status) {
-                const status = result.job_status.status;
-                const description = result.job_status.description || `Job #${currentJobNumber}`;
+        const response = await fetch(`/api/jenkins/build-info?${params.toString()}`);
+        const data = await response.json();
 
-                updateRNStatus(status, description);
+        console.log('DEBUG: Latest build info response:', data);
 
-                // Stop polling if job is finished
-                if (status === 'success' || status === 'failed') {
-                    clearInterval(statusPollingInterval);
-                    statusPollingInterval = null;
-                    setTriggerButtonState(false);
-
-                    if (status === 'success') {
-                        showRNMessage('Storage job completed successfully!', 'success');
-                        showGenerateRNButton();
-                    } else {
-                        showRNMessage('Storage job failed. Check Jenkins for details.', 'error');
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Status polling error:', error);
+        if (data.success && data.build_info && data.build_info.lastBuild && data.build_info.lastBuild.number) {
+            currentJobNumber = data.build_info.lastBuild.number;
+            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
+            console.log('DEBUG: Set storageJobURL from latest build:', storageJobURL);
+            showGenerateRNButton();
+        } else {
+            console.log('DEBUG: Could not get latest build number, retrying in 2 seconds...');
+            setTimeout(async () => {
+                await getLatestBuildNumber();
+            }, 2000);
         }
-    }, 10000);
+    } catch (error) {
+        console.error('Error getting latest build number:', error);
+    }
 }
 
 // UI Helper Functions
@@ -412,48 +364,79 @@ function closeRNTableModal() {
     }
 }
 
+// createStyledTableClone creates a table clone with inline styles for email/export compatibility
+function createStyledTableClone(table, includeContainer = false) {
+    const tableClone = table.cloneNode(true);
+    
+    // Apply inline styles to headers for email compatibility
+    const headers = tableClone.querySelectorAll('th');
+    headers.forEach((header, index) => {
+        header.style.backgroundColor = '#b3d1ff';
+        header.style.borderBottom = '2px solid #2d7de8';
+        header.style.border = '1px solid #ddd';
+        header.style.padding = '12px 8px';
+        header.style.fontWeight = '600';
+        header.style.fontSize = '10px';
+        header.style.fontFamily = 'Arial, sans-serif';
+        header.style.color = '#333';
+        header.style.textAlign = 'left';
+        header.style.verticalAlign = 'top';
+        
+        // Apply column widths
+        const widths = ['8%', '12%', '38%', '15%', '8%', '39%'];
+        if (index < widths.length) {
+            header.style.width = widths[index];
+        }
+    });
+    
+    // Apply inline styles to cells
+    const cells = tableClone.querySelectorAll('td');
+    cells.forEach((cell, index) => {
+        cell.style.border = '1px solid #ddd';
+        cell.style.padding = '12px 8px';
+        cell.style.fontSize = '10px';
+        cell.style.fontFamily = 'Arial, sans-serif';
+        cell.style.textAlign = 'left';
+        cell.style.verticalAlign = 'top';
+        
+        // Apply column widths to cells too
+        const row = cell.parentElement;
+        const cellIndex = Array.from(row.children).indexOf(cell);
+        const widths = ['8%', '12%', '38%', '15%', '8%', '39%'];
+        if (cellIndex < widths.length) {
+            cell.style.width = widths[cellIndex];
+        }
+        
+        // Add alternating row colors for download version
+        if (includeContainer) {
+            const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+            if (rowIndex % 2 === 1) { // Skip header row (index 0)
+                cell.style.backgroundColor = '#f9f9f9';
+            }
+        }
+    });
+    
+    // Apply table styles
+    tableClone.style.borderCollapse = 'collapse';
+    tableClone.style.width = '100%';
+    tableClone.style.fontSize = '10px';
+    tableClone.style.fontFamily = 'Arial, sans-serif';
+    
+    if (includeContainer) {
+        tableClone.style.margin = '20px 0';
+    }
+    
+    return tableClone;
+}
+
 async function copyTableToClipboard() {
     try {
         const table = document.getElementById('rn-table');
         if (!table) return;
 
-        // Create a temporary div to hold the table content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = table.outerHTML;
-        
-        // Add comprehensive styling for better formatting when pasted
-        const tableHtml = `
-            <style>
-                table { 
-                    border-collapse: collapse; 
-                    width: 100%; 
-                    font-size: 14px;
-                    font-family: Arial, sans-serif;
-                }
-                th, td { 
-                    border: 1px solid #ddd; 
-                    padding: 12px 8px; 
-                    text-align: left;
-                    vertical-align: top;
-                }
-                th { 
-                    background: linear-gradient(135deg, #f8f9fa 0%, rgba(74, 158, 255, 0.08) 100%);
-                    border-bottom: 2px solid rgba(74, 158, 255, 0.2);
-                    font-weight: 600;
-                    color: #333;
-                }
-                /* Column specific widths */
-                th:nth-child(1), td:nth-child(1) { width: 10%; } /* Application */
-                th:nth-child(2), td:nth-child(2) { width: 15%; } /* Defect # */
-                th:nth-child(3), td:nth-child(3) { width: 37%; } /* Core Patch/Charts */
-                th:nth-child(4), td:nth-child(4) { width: 19%; } /* Custom Zip */
-                th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Commit Id */
-                th:nth-child(6), td:nth-child(6) { width: 26%; } /* Comments */
-                tr:nth-child(even) td { background-color: #f9f9f9; }
-                tr:hover td { background-color: rgba(74, 158, 255, 0.05); }
-            </style>
-            ${table.outerHTML}
-        `;
+        // Create styled table clone for clipboard
+        const tableClone = createStyledTableClone(table, false);
+        const tableHtml = tableClone.outerHTML;
 
         // Try to use the modern Clipboard API first
         if (navigator.clipboard && navigator.clipboard.write) {
@@ -510,6 +493,21 @@ function showCopySuccess() {
 
 async function populateRNTable() {
     try {
+        // Reset storage job URL to force fresh parameter matching search
+        console.log('DEBUG: Resetting storageJobURL and currentJobNumber for fresh search');
+        storageJobURL = null;
+        currentJobNumber = null;
+
+        // Show loading indication
+        updateRNTableContent({
+            application: 'NEO-OSO',
+            defect_number: '[To be populated]',
+            core_patch_charts: 'Loading data from cluster...',
+            custom_orchestration_zip: 'Loading artifact URL...',
+            commit_id: 'NA',
+            comments_instructions: 'Fetching TLC version, cluster name, and image versions...'
+        });
+
         // Get current form data to determine what to populate
         const customizationJobUrl = getElementValue('customization-job-url', '');
         const customOrchZipUrl = getElementValue('custom-orch-zip-url', '');
@@ -549,7 +547,22 @@ async function populateRNTable() {
         }
 
         // Fetch RN table data from backend with credentials (same pattern as fetchBuildParameters)
-        const apiUrl = `/api/jenkins/rn-table-data?customization_job_url=${encodeURIComponent(customizationJobUrl)}&custom_orch_zip_url=${encodeURIComponent(customOrchZipUrl)}&oni_image=${encodeURIComponent(oniImage)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
+        console.log('DEBUG: storageJobURL before API call:', storageJobURL);
+        console.log('DEBUG: currentJobNumber:', currentJobNumber);
+
+        // If no storage job URL, automatically find latest matching storage build
+        if (!storageJobURL || !currentJobNumber) {
+            console.log('DEBUG: No storage job URL found, running automatic parameter matching...');
+            await getLatestBuildNumber();
+        }
+
+        // Ensure we have the build number in the URL
+        if (storageJobURL && currentJobNumber && !storageJobURL.includes(currentJobNumber.toString())) {
+            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
+            console.log('DEBUG: Fixed storageJobURL with build number:', storageJobURL);
+        }
+
+        const apiUrl = `/api/jenkins/rn-table-data?customization_job_url=${encodeURIComponent(customizationJobUrl)}&custom_orch_zip_url=${encodeURIComponent(customOrchZipUrl)}&oni_image=${encodeURIComponent(oniImage)}&storage_job_url=${encodeURIComponent(storageJobURL || '')}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
         console.log('DEBUG: Calling API URL:', apiUrl);
         
         const response = await fetch(apiUrl);
@@ -627,70 +640,21 @@ function downloadTable() {
         const table = document.getElementById('rn-table');
         if (!table) return;
 
-        // Create HTML content with comprehensive styling
+        // Create styled table clone for download (with alternating rows)
+        const tableClone = createStyledTableClone(table, true);
+        
+        // Create simple HTML content with inline styles
         const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
     <title>Release Notes Request Template</title>
     <meta charset="UTF-8">
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            background-color: #f5f5f5;
-        }
-        h1 { 
-            color: #333; 
-            text-align: center; 
-            margin-bottom: 30px; 
-            font-size: 24px;
-        }
-        .container {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        table { 
-            border-collapse: collapse; 
-            width: 100%; 
-            margin: 20px 0;
-            font-size: 14px;
-            background: white;
-        }
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 12px 8px; 
-            text-align: left;
-            vertical-align: top;
-        }
-        th { 
-            background: linear-gradient(135deg, #f8f9fa 0%, rgba(74, 158, 255, 0.08) 100%);
-            border-bottom: 2px solid rgba(74, 158, 255, 0.2);
-            font-weight: 600;
-            color: #333;
-            font-size: 14px;
-        }
-        /* Column specific widths */
-        th:nth-child(1), td:nth-child(1) { width: 10%; } /* Application */
-        th:nth-child(2), td:nth-child(2) { width: 15%; } /* Defect # */
-        th:nth-child(3), td:nth-child(3) { width: 37%; } /* Core Patch/Charts */
-        th:nth-child(4), td:nth-child(4) { width: 19%; } /* Custom Zip */
-        th:nth-child(5), td:nth-child(5) { width: 8%; }  /* Commit Id */
-        th:nth-child(6), td:nth-child(6) { width: 26%; } /* Comments */
-        tr:nth-child(even) td { background-color: #f9f9f9; }
-        tr:hover td { background-color: rgba(74, 158, 255, 0.05); }
-        @media print {
-            body { background-color: white; }
-            .container { box-shadow: none; }
-        }
-    </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Release Notes Request Template</h1>
-        ${table.outerHTML}
+<body style="font-family: Arial, sans-serif; margin: 20px; background-color: white;">
+    <div style="background: white; padding: 20px;">
+        <h1 style="color: #333; text-align: center; margin-bottom: 30px; font-size: 24px; font-family: Arial, sans-serif;">Release Notes Request Template</h1>
+        ${tableClone.outerHTML}
     </div>
 </body>
 </html>`;

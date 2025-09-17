@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"app/internal/jenkins"
 	"app/internal/jenkins/services"
@@ -14,9 +18,9 @@ import (
 
 // JenkinsHandlers contains all Jenkins-related HTTP handlers
 type JenkinsHandlers struct {
-	client           *jenkins.Client
-	scalingService   services.ScalingService
-	artifactsService services.ArtifactsService
+	client            *jenkins.Client
+	scalingService    services.ScalingService
+	artifactsService  services.ArtifactsService
 	rnCreationService services.RNCreationService
 }
 
@@ -32,9 +36,9 @@ func NewJenkinsHandlers(client *jenkins.Client) *JenkinsHandlers {
 
 // HandleJenkinsScale handles EKS cluster scaling requests
 func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
@@ -43,18 +47,18 @@ func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
 			Username string `json:"username"`
 			Token    string `json:"token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request format", http.StatusBadRequest)
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			http.Error(response, "Invalid request format", http.StatusBadRequest)
 			return
 		}
 
 		// Check if we have credentials either from environment or request
 		hasEnvCredentials := h.client.IsConfigured()
 		hasRequestCredentials := req.Username != "" && req.Token != ""
-		
+
 		if !hasEnvCredentials && !hasRequestCredentials {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Jenkins credentials not configured. Please set OCD_JENKINS_USERNAME and OCD_JENKINS_TOKEN environment variables.",
 			})
@@ -62,7 +66,7 @@ func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
 		}
 
 		// Create a context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var scalingService services.ScalingService
@@ -74,8 +78,8 @@ func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
 				Token:    req.Token,
 			})
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				response.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(response).Encode(map[string]interface{}{
 					"success": false,
 					"message": "Failed to create Jenkins client: " + err.Error(),
 				})
@@ -87,10 +91,10 @@ func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
 		}
 
 		// Trigger the scaling operation
-		response, err := scalingService.TriggerScale(ctx, &req.ScaleRequest)
+		scaleResponse, err := scalingService.TriggerScale(ctx, &req.ScaleRequest)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to trigger Jenkins job: " + err.Error(),
 			})
@@ -98,59 +102,68 @@ func (h *JenkinsHandlers) HandleJenkinsScale() http.HandlerFunc {
 		}
 
 		// Return success response
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":    true,
-			"message":    response.Message,
-			"job_status": response.JobStatus,
-			"request_id": response.RequestID,
+			"message":    scaleResponse.Message,
+			"job_status": scaleResponse.JobStatus,
+			"request_id": scaleResponse.RequestID,
 		})
 	}
 }
 
 // HandleJenkinsStatus handles Jenkins job status queries
 func (h *JenkinsHandlers) HandleJenkinsStatus() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(response http.ResponseWriter, request *http.Request) {
 		var jobNumber int
 		var username, token string
 
-		if r.Method == "POST" {
+		if request.Method == "POST" {
 			var req struct {
 				JobNumber int    `json:"job_number"`
 				Username  string `json:"username"`
 				Token     string `json:"token"`
 			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "Invalid request format", http.StatusBadRequest)
+			if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+				http.Error(response, "Invalid request format", http.StatusBadRequest)
 				return
 			}
 			jobNumber = req.JobNumber
 			username = req.Username
 			token = req.Token
-		} else if r.Method == "GET" {
-			jobNumberStr := r.URL.Query().Get("job_number")
+
+			log.Printf("DEBUG: HandleJenkinsStatus POST - jobNumber: %d, username: %s", jobNumber, username)
+
+			// Validate job number
+			if jobNumber <= 0 {
+				log.Printf("ERROR: Invalid job number: %d", jobNumber)
+				http.Error(response, "Invalid job number: must be greater than 0", http.StatusBadRequest)
+				return
+			}
+		} else if request.Method == "GET" {
+			jobNumberStr := request.URL.Query().Get("job_number")
 			if jobNumberStr == "" {
-				http.Error(w, "job_number parameter is required", http.StatusBadRequest)
+				http.Error(response, "job_number parameter is required", http.StatusBadRequest)
 				return
 			}
 
 			var err error
 			jobNumber, err = strconv.Atoi(jobNumberStr)
 			if err != nil {
-				http.Error(w, "Invalid job_number format", http.StatusBadRequest)
+				http.Error(response, "Invalid job_number format", http.StatusBadRequest)
 				return
 			}
 
 			// Check for credentials in query parameters
-			username = r.URL.Query().Get("username")
-			token = r.URL.Query().Get("token")
+			username = request.URL.Query().Get("username")
+			token = request.URL.Query().Get("token")
 		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var scalingService services.ScalingService
@@ -161,7 +174,7 @@ func (h *JenkinsHandlers) HandleJenkinsStatus() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			scalingService = services.NewScalingService(tempClient)
@@ -172,50 +185,50 @@ func (h *JenkinsHandlers) HandleJenkinsStatus() http.HandlerFunc {
 		// Get job status
 		jobStatus, err := scalingService.GetScaleJobStatus(ctx, jobNumber)
 		if err != nil {
-			http.Error(w, "Failed to get job status: "+err.Error(), http.StatusInternalServerError)
+			http.Error(response, "Failed to get job status: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(jobStatus)
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(jobStatus)
 	}
 }
 
 // HandleJenkinsQueueStatus handles Jenkins queue status queries
 func (h *JenkinsHandlers) HandleJenkinsQueueStatus() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(response http.ResponseWriter, request *http.Request) {
 		var queueURL, username, token string
 
-		if r.Method == "POST" {
+		if request.Method == "POST" {
 			var req struct {
 				QueueURL string `json:"queue_url"`
 				Username string `json:"username"`
 				Token    string `json:"token"`
 			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "Invalid request format", http.StatusBadRequest)
+			if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+				http.Error(response, "Invalid request format", http.StatusBadRequest)
 				return
 			}
 			queueURL = req.QueueURL
 			username = req.Username
 			token = req.Token
-		} else if r.Method == "GET" {
-			queueURL = r.URL.Query().Get("queue_url")
+		} else if request.Method == "GET" {
+			queueURL = request.URL.Query().Get("queue_url")
 			if queueURL == "" {
-				http.Error(w, "queue_url parameter is required", http.StatusBadRequest)
+				http.Error(response, "queue_url parameter is required", http.StatusBadRequest)
 				return
 			}
 
 			// Check for credentials in query parameters
-			username = r.URL.Query().Get("username")
-			token = r.URL.Query().Get("token")
+			username = request.URL.Query().Get("username")
+			token = request.URL.Query().Get("token")
 		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var scalingService services.ScalingService
@@ -226,7 +239,7 @@ func (h *JenkinsHandlers) HandleJenkinsQueueStatus() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			scalingService = services.NewScalingService(tempClient)
@@ -237,20 +250,20 @@ func (h *JenkinsHandlers) HandleJenkinsQueueStatus() http.HandlerFunc {
 		// Get queue status
 		queueStatus, err := scalingService.GetQueueStatus(ctx, queueURL)
 		if err != nil {
-			http.Error(w, "Failed to get queue status: "+err.Error(), http.StatusInternalServerError)
+			http.Error(response, "Failed to get queue status: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(queueStatus)
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(queueStatus)
 	}
 }
 
 // HandleJenkinsArtifacts handles artifact extraction requests
 func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
@@ -259,18 +272,18 @@ func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
 			Username string `json:"username"`
 			Token    string `json:"token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request format", http.StatusBadRequest)
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			http.Error(response, "Invalid request format", http.StatusBadRequest)
 			return
 		}
 
 		// Check for credentials
 		hasEnvCredentials := h.client.IsConfigured()
 		hasRequestCredentials := req.Username != "" && req.Token != ""
-		
+
 		if !hasEnvCredentials && !hasRequestCredentials {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Jenkins credentials not configured",
 			})
@@ -278,7 +291,7 @@ func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
 		}
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var artifactsService services.ArtifactsService
@@ -289,8 +302,8 @@ func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
 				Token:    req.Token,
 			})
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				response.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(response).Encode(map[string]interface{}{
 					"success": false,
 					"message": "Failed to create Jenkins client: " + err.Error(),
 				})
@@ -302,10 +315,10 @@ func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
 		}
 
 		// Extract artifacts
-		response, err := artifactsService.ExtractArtifacts(ctx, &req.ArtifactExtractionRequest)
+		artifactsResponse, err := artifactsService.ExtractArtifacts(ctx, &req.ArtifactExtractionRequest)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to extract artifacts: " + err.Error(),
 			})
@@ -313,38 +326,39 @@ func (h *JenkinsHandlers) HandleJenkinsArtifacts() http.HandlerFunc {
 		}
 
 		// Return success response
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":  true,
 			"message":  "Artifacts extracted successfully",
-			"response": response,
+			"response": artifactsResponse,
 		})
 	}
 }
 
 // HandleJenkinsBuildInfo handles build information requests
 func (h *JenkinsHandlers) HandleJenkinsBuildInfo() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		log.Printf("DEBUG: HandleJenkinsBuildInfo called - Method: %s, URL: %s", request.Method, request.URL.String())
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		buildURL := r.URL.Query().Get("build_url")
+		buildURL := request.URL.Query().Get("build_url")
 		if buildURL == "" {
-			http.Error(w, "build_url parameter is required", http.StatusBadRequest)
+			http.Error(response, "build_url parameter is required", http.StatusBadRequest)
 			return
 		}
 
 		// Check for credentials in query parameters
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
-		var artifactsService services.ArtifactsService
+		var jenkinsClient *jenkins.Client
 		if username != "" && token != "" {
 			tempClient, err := jenkins.NewClientWithConfig(jenkins.ClientConfig{
 				URL:      h.client.GetBaseURL(),
@@ -352,53 +366,166 @@ func (h *JenkinsHandlers) HandleJenkinsBuildInfo() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
-			artifactsService = services.NewArtifactsService(tempClient)
+			jenkinsClient = tempClient
 		} else {
-			artifactsService = h.artifactsService
+			jenkinsClient = h.client
 		}
 
-		// Get build info
-		buildInfo, err := artifactsService.GetBuildInfo(ctx, buildURL)
-		if err != nil {
-			http.Error(w, "Failed to get build info: "+err.Error(), http.StatusInternalServerError)
+		// For job URLs (without build number), get job info to find latest build
+		if !regexp.MustCompile(`/\d+/?$`).MatchString(buildURL) {
+			// Get trigger parameters for matching
+			product := request.URL.Query().Get("product")
+			coreVersion := request.URL.Query().Get("core_version")
+			branchName := request.URL.Query().Get("branch_name")
+			customOrchZipURL := request.URL.Query().Get("custom_orch_zip_url")
+			oniImage := request.URL.Query().Get("oni_image")
+
+			log.Printf("DEBUG: Received query parameters - product: '%s', core_version: '%s', branch_name: '%s', custom_orch_zip_url: '%s', oni_image: '%s'", product, coreVersion, branchName, customOrchZipURL, oniImage)
+
+			// This is a job URL, get the job info to find latest build
+			jobAPIURL := strings.TrimSuffix(buildURL, "/") + "/api/json"
+
+			responseBody, err := jenkinsClient.GetWithAuth(ctx, jobAPIURL)
+			if err != nil {
+				http.Error(response, "Failed to get job info: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			var jobInfo struct {
+				LastBuild struct {
+					Number int    `json:"number"`
+					URL    string `json:"url"`
+				} `json:"lastBuild"`
+				LastCompletedBuild struct {
+					Number int    `json:"number"`
+					URL    string `json:"url"`
+				} `json:"lastCompletedBuild"`
+				InQueue bool `json:"inQueue"`
+			}
+
+			if err := json.Unmarshal(responseBody, &jobInfo); err != nil {
+				http.Error(response, "Failed to parse job info: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			targetBuildNumber := jobInfo.LastBuild.Number
+
+			// If we have trigger parameters, just check the latest build
+			if product != "" || coreVersion != "" || branchName != "" || customOrchZipURL != "" || oniImage != "" {
+				log.Printf("DEBUG: Trigger parameters - product: %s, core_version: %s, branch_name: %s, custom_orch_zip_url: %s, oni_image: %s", product, coreVersion, branchName, customOrchZipURL, oniImage)
+
+				// Get build parameters for the latest build
+				buildAPIURL := strings.TrimSuffix(buildURL, "/") + fmt.Sprintf("/%d/api/json", targetBuildNumber)
+				buildResponseBody, err := jenkinsClient.GetWithAuth(ctx, buildAPIURL)
+				if err != nil {
+					log.Printf("DEBUG: Latest build %d does not exist, using fallback", targetBuildNumber)
+				} else {
+					var buildInfo struct {
+						Actions []struct {
+							Class      string `json:"_class"`
+							Parameters []struct {
+								Name  string `json:"name"`
+								Value string `json:"value"`
+							} `json:"parameters,omitempty"`
+						} `json:"actions"`
+					}
+
+					if err := json.Unmarshal(buildResponseBody, &buildInfo); err == nil {
+						// Find parameters action
+						var buildParams map[string]string
+						for _, action := range buildInfo.Actions {
+							if action.Class == "hudson.model.ParametersAction" && action.Parameters != nil {
+								buildParams = make(map[string]string)
+								for _, param := range action.Parameters {
+									buildParams[param.Name] = param.Value
+								}
+								break
+							}
+						}
+
+						log.Printf("DEBUG: Latest build %d parameters - branch_name: %s, oni_image: %s", targetBuildNumber, buildParams["branch_name"], buildParams["oni_image"])
+
+						// Check if parameters match
+						parametersMatch := true
+						if branchName != "" && buildParams["branch_name"] != branchName {
+							parametersMatch = false
+						}
+						if oniImage != "" && buildParams["oni_image"] != oniImage {
+							parametersMatch = false
+						}
+
+						log.Printf("DEBUG: Latest build %d parameters match: %v", targetBuildNumber, parametersMatch)
+
+						if parametersMatch {
+							log.Printf("DEBUG: Using latest matching build: %d", targetBuildNumber)
+						} else {
+							log.Printf("DEBUG: Latest build doesn't match parameters, returning error for retry")
+							http.Error(response, "Latest build parameters don't match", http.StatusNotFound)
+							return
+						}
+					}
+				}
+			}
+
+			// Return the job info with verified build number
+			result := map[string]interface{}{
+				"success": true,
+				"build_info": map[string]interface{}{
+					"lastBuild": map[string]interface{}{
+						"number": targetBuildNumber,
+						"url":    strings.TrimSuffix(buildURL, "/") + fmt.Sprintf("/%d", targetBuildNumber),
+					},
+				},
+			}
+
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(result)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(buildInfo)
+		// For specific build URLs, get build info
+		artifactsService := services.NewArtifactsService(jenkinsClient)
+		buildInfo, err := artifactsService.GetBuildInfo(ctx, buildURL)
+		if err != nil {
+			http.Error(response, "Failed to get build info: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(buildInfo)
 	}
 }
 
 // HandleRNCreate handles RN creation requests
 func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		var req struct {
 			types.RNCreationRequest
-			Username string `json:"username"`
-			Token    string `json:"token"`
+			Username          string `json:"username"`
+			Token             string `json:"token"`
 			BitbucketUsername string `json:"bitbucket_username"`
 			BitbucketToken    string `json:"bitbucket_token"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request format", http.StatusBadRequest)
+		if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+			http.Error(response, "Invalid request format", http.StatusBadRequest)
 			return
 		}
 
 		// Check if we have credentials
 		hasEnvCredentials := h.client.IsConfigured()
 		hasRequestCredentials := req.Username != "" && req.Token != ""
-		
+
 		if !hasEnvCredentials && !hasRequestCredentials {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Jenkins credentials not configured. Please set credentials in Settings.",
 			})
@@ -406,7 +533,7 @@ func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
 		}
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var rnCreationService services.RNCreationService
@@ -418,8 +545,8 @@ func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
 				Token:    req.Token,
 			})
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				response.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(response).Encode(map[string]interface{}{
 					"success": false,
 					"message": "Failed to create Jenkins client: " + err.Error(),
 				})
@@ -432,8 +559,8 @@ func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
 
 		// Auto-populate request from customization job
 		if err := rnCreationService.PopulateRequestFromCustomizationJob(ctx, &req.RNCreationRequest); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to populate request from customization job: " + err.Error(),
 			})
@@ -454,20 +581,20 @@ func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
 		}
 
 		// Trigger the RN creation operation using credentials
-		var response *types.RNCreationResponse
+		var rnResponse *types.RNCreationResponse
 		var err error
-		
+
 		if hasRequestCredentials {
 			// Use explicit credentials for the different Jenkins server
-			response, err = rnCreationService.TriggerStorageCreationWithCredentials(ctx, &req.RNCreationRequest, req.Username, req.Token)
+			rnResponse, err = rnCreationService.TriggerStorageCreationWithCredentials(ctx, &req.RNCreationRequest, req.Username, req.Token)
 		} else {
 			// Fall back to regular method (may not work for different server)
-			response, err = rnCreationService.TriggerStorageCreation(ctx, &req.RNCreationRequest)
+			rnResponse, err = rnCreationService.TriggerStorageCreation(ctx, &req.RNCreationRequest)
 		}
-		
+
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to trigger storage creation job: " + err.Error(),
 			})
@@ -475,37 +602,37 @@ func (h *JenkinsHandlers) HandleRNCreate() http.HandlerFunc {
 		}
 
 		// Return success response
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":    true,
-			"message":    response.Message,
-			"job_url":    response.JobURL,
-			"job_status": response.JobStatus,
-			"request_id": response.RequestID,
+			"message":    rnResponse.Message,
+			"job_url":    rnResponse.JobURL,
+			"job_status": rnResponse.JobStatus,
+			"request_id": rnResponse.RequestID,
 		})
 	}
 }
 
 // HandleRNCustomizationJob handles requests to get customization job info
 func (h *JenkinsHandlers) HandleRNCustomizationJob() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		branch := r.URL.Query().Get("branch")
+		branch := request.URL.Query().Get("branch")
 		if branch == "" {
-			http.Error(w, "branch parameter is required", http.StatusBadRequest)
+			http.Error(response, "branch parameter is required", http.StatusBadRequest)
 			return
 		}
 
 		// Check for Jenkins credentials in query parameters
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
 		// Create context for the request
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use appropriate client for the request
 		var rnCreationService services.RNCreationService
@@ -516,7 +643,7 @@ func (h *JenkinsHandlers) HandleRNCustomizationJob() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			rnCreationService = services.NewRNCreationService(tempClient)
@@ -527,16 +654,16 @@ func (h *JenkinsHandlers) HandleRNCustomizationJob() http.HandlerFunc {
 		// Get latest customization job
 		job, err := rnCreationService.GetLatestCustomizationJob(ctx, branch)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to get customization job: " + err.Error(),
 			})
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success": true,
 			"job":     job,
 		})
@@ -545,22 +672,22 @@ func (h *JenkinsHandlers) HandleRNCustomizationJob() http.HandlerFunc {
 
 // HandleRNBuildParameters handles requests to get build parameters
 func (h *JenkinsHandlers) HandleRNBuildParameters() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		jobURL := r.URL.Query().Get("job_url")
+		jobURL := request.URL.Query().Get("job_url")
 		if jobURL == "" {
-			http.Error(w, "job_url parameter is required", http.StatusBadRequest)
+			http.Error(response, "job_url parameter is required", http.StatusBadRequest)
 			return
 		}
 
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
-		ctx := r.Context()
+		ctx := request.Context()
 		var rnCreationService services.RNCreationService
 		if username != "" && token != "" {
 			tempClient, err := jenkins.NewClientWithConfig(jenkins.ClientConfig{
@@ -569,7 +696,7 @@ func (h *JenkinsHandlers) HandleRNBuildParameters() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			rnCreationService = services.NewRNCreationService(tempClient)
@@ -579,8 +706,8 @@ func (h *JenkinsHandlers) HandleRNBuildParameters() http.HandlerFunc {
 
 		parameters, err := rnCreationService.GetBuildParameters(ctx, jobURL)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to get build parameters: " + err.Error(),
 			})
@@ -589,9 +716,9 @@ func (h *JenkinsHandlers) HandleRNBuildParameters() http.HandlerFunc {
 
 		// Also get build description for TLC version extraction
 		description, _ := rnCreationService.GetBuildDescription(ctx, jobURL)
-		
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":     true,
 			"parameters":  parameters,
 			"description": description,
@@ -601,22 +728,22 @@ func (h *JenkinsHandlers) HandleRNBuildParameters() http.HandlerFunc {
 
 // HandleRNArtifactURL handles requests to get artifact URL
 func (h *JenkinsHandlers) HandleRNArtifactURL() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		jobURL := r.URL.Query().Get("job_url")
+		jobURL := request.URL.Query().Get("job_url")
 		if jobURL == "" {
-			http.Error(w, "job_url parameter is required", http.StatusBadRequest)
+			http.Error(response, "job_url parameter is required", http.StatusBadRequest)
 			return
 		}
 
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
-		ctx := r.Context()
+		ctx := request.Context()
 
 		// Use existing artifacts service to parse "Deployed Artifacts" section
 		var artifactsService services.ArtifactsService
@@ -627,7 +754,7 @@ func (h *JenkinsHandlers) HandleRNArtifactURL() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				http.Error(w, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
+				http.Error(response, "Failed to create Jenkins client: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			artifactsService = services.NewArtifactsService(tempClient)
@@ -636,15 +763,15 @@ func (h *JenkinsHandlers) HandleRNArtifactURL() http.HandlerFunc {
 		}
 
 		// Extract artifacts using existing service
-		request := &types.ArtifactExtractionRequest{
-			BuildURL: jobURL,
+		extractRequest := &types.ArtifactExtractionRequest{
+			BuildURL:    jobURL,
 			FilterTypes: []string{"zip"}, // Filter for zip files
 		}
 
-		response, err := artifactsService.ExtractArtifacts(ctx, request)
+		artifactsResponse, err := artifactsService.ExtractArtifacts(ctx, extractRequest)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to extract artifacts: " + err.Error(),
 			})
@@ -653,28 +780,47 @@ func (h *JenkinsHandlers) HandleRNArtifactURL() http.HandlerFunc {
 
 		// Look for att-orchestration*src.zip artifact
 		var orchestrationURL string
-		for _, artifact := range response.Artifacts {
+		for _, artifact := range artifactsResponse.Artifacts {
 			if strings.Contains(artifact.Name, "att-orchestration") && strings.Contains(artifact.Name, "src.zip") {
 				// Apply host swapping as specified in requirements
 				originalURL := artifact.URL
-				orchestrationURL = strings.Replace(originalURL, 
-					"https://oss-nexus2.oss.corp.amdocs.aws/repository/att.maven.snapshot/", 
+				orchestrationURL = strings.Replace(originalURL,
+					"https://oss-nexus2.oss.corp.amdocs.aws/repository/att.maven.snapshot/",
 					"http://illin3613:8081/repository/maven.group/", 1)
 				break
 			}
 		}
 
 		if orchestrationURL == "" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": false,
-				"message": "att-orchestration*src.zip artifact not found",
-			})
-			return
+			// Fallback: Try to fetch directly from Nexus using branch name
+			log.Printf("Jenkins artifact not found, trying Nexus direct fetch fallback...")
+			branch := request.URL.Query().Get("branch")
+			log.Printf("Branch parameter from request: '%s'", branch)
+			if branch != "" {
+				log.Printf("Calling fetchOrchestrationFromNexus with branch: %s", branch)
+				fallbackURL, err := fetchOrchestrationFromNexus(branch)
+				if err == nil && fallbackURL != "" {
+					orchestrationURL = fallbackURL
+					log.Printf("Successfully fetched orchestration URL from Nexus: %s", orchestrationURL)
+				} else {
+					log.Printf("Nexus fallback also failed: %v", err)
+				}
+			} else {
+				log.Printf("No branch parameter provided, skipping Nexus fallback")
+			}
+
+			if orchestrationURL == "" {
+				response.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(response).Encode(map[string]interface{}{
+					"success": false,
+					"message": "att-orchestration*src.zip artifact not found in Jenkins artifacts or Nexus fallback",
+				})
+				return
+			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":      true,
 			"artifact_url": orchestrationURL,
 		})
@@ -683,45 +829,45 @@ func (h *JenkinsHandlers) HandleRNArtifactURL() http.HandlerFunc {
 
 // HandleRNOniImage handles requests to get ONI image
 func (h *JenkinsHandlers) HandleRNOniImage() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		branch := r.URL.Query().Get("branch")
+		branch := request.URL.Query().Get("branch")
 		if branch == "" {
-			http.Error(w, "branch parameter is required", http.StatusBadRequest)
+			http.Error(response, "branch parameter is required", http.StatusBadRequest)
 			return
 		}
 
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
 		if username == "" || token == "" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Bitbucket credentials required",
 			})
 			return
 		}
 
-		ctx := r.Context()
+		ctx := request.Context()
 		rnCreationService := h.rnCreationService
 
 		oniImage, err := rnCreationService.GetOniImageFromBitbucket(ctx, branch, "customization", username, token)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to get ONI image: " + err.Error(),
 			})
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
 			"success":   true,
 			"oni_image": oniImage,
 		})
@@ -730,20 +876,23 @@ func (h *JenkinsHandlers) HandleRNOniImage() http.HandlerFunc {
 
 // HandleRNTableData handles RN table data generation requests
 func (h *JenkinsHandlers) HandleRNTableData() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != "GET" {
+			http.Error(response, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		// Get parameters from query string
-		customizationJobURL := r.URL.Query().Get("customization_job_url")
-		customOrchZipURL := r.URL.Query().Get("custom_orch_zip_url")
-		oniImage := r.URL.Query().Get("oni_image")
+		customizationJobURL := request.URL.Query().Get("customization_job_url")
+		customOrchZipURL := request.URL.Query().Get("custom_orch_zip_url")
+		oniImage := request.URL.Query().Get("oni_image")
+		storageJobURL := request.URL.Query().Get("storage_job_url")
+
+		log.Printf("DEBUG: RN Table Data parameters - storageJobURL: '%s'", storageJobURL)
 
 		if customizationJobURL == "" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "customization_job_url parameter is required",
 			})
@@ -751,10 +900,10 @@ func (h *JenkinsHandlers) HandleRNTableData() http.HandlerFunc {
 		}
 
 		// Get credentials from query parameters (same pattern as HandleRNBuildParameters)
-		username := r.URL.Query().Get("username")
-		token := r.URL.Query().Get("token")
+		username := request.URL.Query().Get("username")
+		token := request.URL.Query().Get("token")
 
-		ctx := r.Context()
+		ctx := request.Context()
 		var rnCreationService services.RNCreationService
 		if username != "" && token != "" {
 			tempClient, err := jenkins.NewClientWithConfig(jenkins.ClientConfig{
@@ -763,8 +912,8 @@ func (h *JenkinsHandlers) HandleRNTableData() http.HandlerFunc {
 				Token:    token,
 			})
 			if err != nil {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				response.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(response).Encode(map[string]interface{}{
 					"success": false,
 					"message": "Failed to create Jenkins client: " + err.Error(),
 				})
@@ -776,31 +925,138 @@ func (h *JenkinsHandlers) HandleRNTableData() http.HandlerFunc {
 		}
 
 		// Create request structure
-		request := &types.RNTableRequest{
+		tableRequest := &types.RNTableRequest{
 			CustomizationJobURL: customizationJobURL,
 			CustomOrchZipURL:    customOrchZipURL,
-			OniImage:           oniImage,
+			OniImage:            oniImage,
+			StorageJobURL:       storageJobURL,
 		}
 
 		// Generate RN table data
-		rnTableData, err := rnCreationService.GenerateRNTableData(ctx, request)
+		rnTableData, err := rnCreationService.GenerateRNTableData(ctx, tableRequest)
 		if err != nil {
 			log.Printf("ERROR: GenerateRNTableData failed: %v", err)
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			response.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(response).Encode(map[string]interface{}{
 				"success": false,
 				"message": "Failed to generate RN table data: " + err.Error(),
 			})
 			return
 		}
 
-		log.Printf("DEBUG: GenerateRNTableData succeeded, returning data: %+v", rnTableData)
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":        true,
-			"rn_table_data":  rnTableData,
+		response.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(response).Encode(map[string]interface{}{
+			"success":       true,
+			"rn_table_data": rnTableData,
 		})
 	}
+}
+
+// fetchOrchestrationFromNexus fetches orchestration artifact URL directly from Nexus
+func fetchOrchestrationFromNexus(branch string) (string, error) {
+	log.Printf("Starting Nexus fetch for branch: %s", branch)
+
+	// Normalize branch name - remove feature/ and release/ prefixes
+	normalizedBranch := branch
+	if strings.HasPrefix(branch, "feature/") {
+		normalizedBranch = strings.TrimPrefix(branch, "feature/")
+		log.Printf("Normalized feature branch: %s -> %s", branch, normalizedBranch)
+	} else if strings.HasPrefix(branch, "release/") {
+		normalizedBranch = strings.TrimPrefix(branch, "release/")
+		log.Printf("Normalized release branch: %s -> %s", branch, normalizedBranch)
+	} else {
+		log.Printf("Using branch as-is: %s", normalizedBranch)
+	}
+
+	// Construct Nexus search URL - use wildcard to match version timestamps
+	nexusURL := fmt.Sprintf("https://oss-nexus2.oss.corp.amdocs.aws/service/rest/v1/search?repository=att.maven.snapshot&group=com.amdocs.oss.att.customization&name=att-orchestration&version=10.4-%s*", normalizedBranch)
+	log.Printf("Querying Nexus URL: %s", nexusURL)
+
+	// Create HTTP client with aggressive timeout and no SSL verification
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	// Make request to Nexus API
+	log.Printf("Making HTTP request to Nexus...")
+	resp, err := client.Get(nexusURL)
+	if err != nil {
+		log.Printf("Nexus HTTP request failed: %v", err)
+		return "", fmt.Errorf("failed to query Nexus API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	log.Printf("Nexus API response status: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Nexus API returned non-200 status: %d", resp.StatusCode)
+		return "", fmt.Errorf("Nexus API returned status %d", resp.StatusCode)
+	}
+
+	// Parse JSON response
+	var nexusResp struct {
+		Items []struct {
+			Assets []struct {
+				DownloadURL string `json:"downloadUrl"`
+				Path        string `json:"path"`
+			} `json:"assets"`
+		} `json:"items"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&nexusResp); err != nil {
+		log.Printf("Failed to decode Nexus JSON response: %v", err)
+		return "", fmt.Errorf("failed to decode Nexus response: %v", err)
+	}
+
+	log.Printf("Nexus returned %d items", len(nexusResp.Items))
+
+	// Find the latest src.zip file
+	var latestSrcZip string
+	var latestTimestamp string
+
+	for _, item := range nexusResp.Items {
+		log.Printf("Processing item with %d assets", len(item.Assets))
+		for _, asset := range item.Assets {
+			log.Printf("Checking asset: %s", asset.Path)
+			if strings.Contains(asset.Path, "-src.zip") {
+				log.Printf("Found src.zip asset: %s", asset.Path)
+				// Extract timestamp from path like: att-orchestration-10.4-develop-20250916.141559-535-src.zip
+				parts := strings.Split(asset.Path, "-")
+				if len(parts) >= 6 {
+					// Find timestamp part (format: YYYYMMDD.HHMMSS)
+					for _, part := range parts {
+						if len(part) == 15 && strings.Contains(part, ".") {
+							timestamp := part
+							log.Printf("Found timestamp: %s (current latest: %s)", timestamp, latestTimestamp)
+							if timestamp > latestTimestamp {
+								latestTimestamp = timestamp
+								latestSrcZip = asset.DownloadURL
+								log.Printf("New latest src.zip: %s", latestSrcZip)
+							}
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if latestSrcZip == "" {
+		log.Printf("No src.zip artifacts found for branch %s", normalizedBranch)
+		return "", fmt.Errorf("no src.zip artifacts found for branch %s", normalizedBranch)
+	}
+
+	log.Printf("Selected latest src.zip: %s", latestSrcZip)
+
+	// Apply host swapping for internal network access
+	// From: https://oss-nexus2.oss.corp.amdocs.aws/repository/att.maven.snapshot/
+	// To: http://illin3613:8081/repository/maven.group/
+	finalURL := strings.Replace(latestSrcZip, "https://oss-nexus2.oss.corp.amdocs.aws/repository/att.maven.snapshot/", "http://illin3613:8081/repository/maven.group/", 1)
+
+	log.Printf("Final URL after host swapping: %s", finalURL)
+	return finalURL, nil
 }
 
 // RegisterJenkinsRoutes registers all Jenkins-related routes with a mux

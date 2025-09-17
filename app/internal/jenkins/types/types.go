@@ -41,10 +41,10 @@ type ScaleRequest struct {
 
 // ScaleResponse represents the response from a scaling operation
 type ScaleResponse struct {
-	JobStatus   *JobStatus        `json:"job_status"`
-	Message     string            `json:"message"`
-	RequestID   string            `json:"request_id,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	JobStatus *JobStatus        `json:"job_status"`
+	Message   string            `json:"message"`
+	RequestID string            `json:"request_id,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // ArtifactExtractionRequest represents a request to extract artifacts
@@ -56,11 +56,11 @@ type ArtifactExtractionRequest struct {
 
 // ArtifactExtractionResponse represents the response from artifact extraction
 type ArtifactExtractionResponse struct {
-	Artifacts    []DeployedArtifact `json:"artifacts"`
-	TotalCount   int                `json:"total_count"`
-	BuildURL     string             `json:"build_url"`
-	ExtractedAt  time.Time          `json:"extracted_at"`
-	Metadata     map[string]string  `json:"metadata,omitempty"`
+	Artifacts   []DeployedArtifact `json:"artifacts"`
+	TotalCount  int                `json:"total_count"`
+	BuildURL    string             `json:"build_url"`
+	ExtractedAt time.Time          `json:"extracted_at"`
+	Metadata    map[string]string  `json:"metadata,omitempty"`
 }
 
 // AuthCredentials represents Jenkins authentication credentials
@@ -81,25 +81,25 @@ type ClientOptions struct {
 
 // RequestContext represents context for Jenkins requests
 type RequestContext struct {
-	RequestID    string            `json:"request_id"`
-	UserID       string            `json:"user_id,omitempty"`
-	Timestamp    time.Time         `json:"timestamp"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
+	RequestID string            `json:"request_id"`
+	UserID    string            `json:"user_id,omitempty"`
+	Timestamp time.Time         `json:"timestamp"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // JobParameter represents a parameter for a Jenkins job
 type JobParameter struct {
-	Name         string      `json:"name"`
-	Value        string      `json:"value"`
-	Type         string      `json:"type"`
-	Description  string      `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Value       string `json:"value"`
+	Type        string `json:"type"`
+	Description string `json:"description,omitempty"`
 }
 
 // QueueItem represents an item in Jenkins build queue
 type QueueItem struct {
 	ID         int        `json:"id"`
 	URL        string     `json:"url"`
-	Why        string     `json:"why"`         // Reason for being queued
+	Why        string     `json:"why"` // Reason for being queued
 	Cancelled  bool       `json:"cancelled"`
 	Executable *JobStatus `json:"executable,omitempty"` // Set when job starts executing
 	Task       struct {
@@ -128,33 +128,33 @@ type BuildInfo struct {
 
 // ChangeSet represents a code change in a Jenkins build
 type ChangeSet struct {
-	CommitID    string    `json:"commit_id"`
-	Author      string    `json:"author"`
-	Message     string    `json:"message"`
-	Timestamp   time.Time `json:"timestamp"`
-	AffectedFiles []string `json:"affected_files,omitempty"`
+	CommitID      string    `json:"commit_id"`
+	Author        string    `json:"author"`
+	Message       string    `json:"message"`
+	Timestamp     time.Time `json:"timestamp"`
+	AffectedFiles []string  `json:"affected_files,omitempty"`
 }
 
 // JobHealth represents the health status of a Jenkins job
 type JobHealth struct {
-	Score       int    `json:"score"`       // 0-100
+	Score       int    `json:"score"` // 0-100
 	Description string `json:"description"`
 	IconURL     string `json:"icon_url,omitempty"`
 }
 
 // ServiceStatus represents the overall status of a Jenkins service
 type ServiceStatus struct {
-	Service     string    `json:"service"`
-	Status      string    `json:"status"` // "healthy", "degraded", "unhealthy"
-	LastChecked time.Time `json:"last_checked"`
-	Details     string    `json:"details,omitempty"`
+	Service     string                 `json:"service"`
+	Status      string                 `json:"status"` // "healthy", "degraded", "unhealthy"
+	LastChecked time.Time              `json:"last_checked"`
+	Details     string                 `json:"details,omitempty"`
 	Metrics     map[string]interface{} `json:"metrics,omitempty"`
 }
 
 // ValidationResult represents the result of parameter validation
 type ValidationResult struct {
-	Valid   bool     `json:"valid"`
-	Errors  []string `json:"errors,omitempty"`
+	Valid    bool     `json:"valid"`
+	Errors   []string `json:"errors,omitempty"`
 	Warnings []string `json:"warnings,omitempty"`
 }
 
@@ -248,24 +248,24 @@ type RNCreationRequest struct {
 
 // RNCreationResponse represents the response from storage job trigger
 type RNCreationResponse struct {
-	JobStatus   *JobStatus        `json:"job_status"`
-	Message     string            `json:"message"`
-	JobURL      string            `json:"job_url,omitempty"`
-	RequestID   string            `json:"request_id,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	JobStatus *JobStatus        `json:"job_status"`
+	Message   string            `json:"message"`
+	JobURL    string            `json:"job_url,omitempty"`
+	RequestID string            `json:"request_id,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // CustomizationJob represents a Jenkins customization job
 type CustomizationJob struct {
-	Number      int       `json:"number"`
-	URL         string    `json:"url"`
-	Status      string    `json:"status"`
-	Result      string    `json:"result"`
-	Timestamp   time.Time `json:"timestamp"`
-	Branch      string    `json:"branch"`
-	TLCVersion  string    `json:"tlc_version,omitempty"`
-	Artifacts   []DeployedArtifact `json:"artifacts,omitempty"`
-	Building    bool      `json:"building"`
+	Number     int                `json:"number"`
+	URL        string             `json:"url"`
+	Status     string             `json:"status"`
+	Result     string             `json:"result"`
+	Timestamp  time.Time          `json:"timestamp"`
+	Branch     string             `json:"branch"`
+	TLCVersion string             `json:"tlc_version,omitempty"`
+	Artifacts  []DeployedArtifact `json:"artifacts,omitempty"`
+	Building   bool               `json:"building"`
 }
 
 // BitbucketCommit represents a commit from Bitbucket API
@@ -300,18 +300,19 @@ type CorePatchInfo struct {
 type RNTableRequest struct {
 	CustomizationJobURL string `json:"customization_job_url"`
 	CustomOrchZipURL    string `json:"custom_orch_zip_url"`
-	OniImage           string `json:"oni_image"`
-	AttImage           string `json:"att_image"`
-	GuidedTaskImage    string `json:"guided_task_image"`
-	CustomizationImage string `json:"customization_image"`
+	OniImage            string `json:"oni_image"`
+	AttImage            string `json:"att_image"`
+	GuidedTaskImage     string `json:"guided_task_image"`
+	CustomizationImage  string `json:"customization_image"`
+	StorageJobURL       string `json:"storage_job_url"`
 }
 
 // RNTableData represents the data structure for RN table population
 type RNTableData struct {
-	Application              string `json:"application"`
-	DefectNumber             string `json:"defect_number"`
-	CorePatchCharts          string `json:"core_patch_charts"`
-	CustomOrchestrationZip   string `json:"custom_orchestration_zip"`
-	CommitID                 string `json:"commit_id"`
-	CommentsInstructions     string `json:"comments_instructions"`
+	Application            string `json:"application"`
+	DefectNumber           string `json:"defect_number"`
+	CorePatchCharts        string `json:"core_patch_charts"`
+	CustomOrchestrationZip string `json:"custom_orchestration_zip"`
+	CommitID               string `json:"commit_id"`
+	CommentsInstructions   string `json:"comments_instructions"`
 }

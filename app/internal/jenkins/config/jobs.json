@@ -3,7 +3,7 @@
     "scaling": {
       "name": "EKS Cluster Scaling",
       "description": "Scale EKS clusters up or down",
-      "job_path": "job/Utility/job/OpsUtil/job/scaleUpOrDown2",
+      "job_path": "job/Utility/job/OpsUtil/job/scaleUpOrDown",
       "method": "POST",
       "endpoint_suffix": "buildWithParameters",
       "timeout_seconds": 30,

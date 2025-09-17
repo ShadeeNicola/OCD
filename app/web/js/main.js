@@ -817,15 +817,21 @@ class OCDApp {
     
     async fetchArtifactURL(jobUrl, credentials, customOrchZipUrlInput) {
         try {
-            
-            const apiUrl = `/api/jenkins/rn-artifact-url?job_url=${encodeURIComponent(jobUrl)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
-            
+            // Include branch parameter for Nexus fallback
+            const branch = this.selectedBranch ? this.selectedBranch.name : '';
+            console.log(`Fetching artifact URL for branch: ${branch}`);
+            const apiUrl = `/api/jenkins/rn-artifact-url?job_url=${encodeURIComponent(jobUrl)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}&branch=${encodeURIComponent(branch)}`;
+
             const response = await fetch(apiUrl);
             const data = await response.json();
-            
-            
+
+            console.log('Artifact URL response:', data);
+
             if (data.success && data.artifact_url && customOrchZipUrlInput) {
                 customOrchZipUrlInput.value = data.artifact_url;
+                console.log(`Custom Orchestration ZIP URL set to: ${data.artifact_url}`);
+            } else if (!data.success) {
+                console.error(`Failed to fetch artifact URL: ${data.message}`);
             }
         } catch (error) {
             console.error('Error fetching artifact URL:', error);
@@ -878,6 +884,58 @@ class OCDApp {
         // If no mapping found, return null
         console.warn('Could not map release version:', version);
         return null;
+    }
+
+    initializeRNCreation() {
+        // Initialize RN Creation page elements
+        const branchSelector = document.getElementById('branch-selector');
+        const branchSearch = document.getElementById('branch-search');
+        const branchDropdownBtn = document.getElementById('branch-dropdown-btn');
+        const branchDropdown = document.getElementById('branch-dropdown');
+        const refreshBranchesBtn = document.getElementById('refresh-branches-btn');
+        const createRNBtn = document.getElementById('create-rn-btn');
+        const refreshJobBtn = document.getElementById('refresh-job-btn');
+        const customizationJobUrl = document.getElementById('customization-job-url');
+
+        if (branchSelector && branchSearch && branchDropdownBtn && branchDropdown && refreshBranchesBtn && createRNBtn) {
+            // Initialize state
+            this.selectedBranch = null;
+            this.allBranches = [];
+            this.isDropdownOpen = false;
+
+            // Load branches on page load
+            this.loadBranches();
+
+            // Set up event listeners
+            refreshBranchesBtn.addEventListener('click', () => this.loadBranches());
+            branchSearch.addEventListener('click', () => this.toggleBranchDropdown());
+            branchDropdownBtn.addEventListener('click', () => this.toggleBranchDropdown());
+
+            // Add refresh job button listener
+            if (refreshJobBtn) {
+                refreshJobBtn.addEventListener('click', () => {
+                    if (this.selectedBranch) {
+                        this.loadCustomizationJob(this.selectedBranch.name);
+                    }
+                });
+            }
+
+            // Add customization job URL change listener
+            if (customizationJobUrl) {
+                customizationJobUrl.addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        this.populateFieldsFromJob(e.target.value);
+                    }
+                });
+            }
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!branchSelector.contains(e.target)) {
+                    this.closeBranchDropdown();
+                }
+            });
+        }
     }
 
     // RN Creation methods moved to jenkins-rn-creation.js module for better separation of concerns

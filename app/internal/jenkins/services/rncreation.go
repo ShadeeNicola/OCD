@@ -23,6 +23,19 @@ import (
 	"app/internal/jenkins/types"
 )
 
+// Constants for script paths and configurations
+const (
+	helmChartsScriptPath    = "../deploy-scripts/scripts/get-helm-charts.sh"
+	imageVersionsScriptPath = "../deploy-scripts/scripts/get-image-versions.sh"
+	helmChartsScriptName    = "get-helm-charts.sh"
+	imageVersionsScriptName = "get-image-versions.sh"
+
+	// Application constants
+	defaultApplication  = "NEO-OSO"
+	defaultDefectNumber = "[To be populated]"
+	defaultCommitID     = "NA"
+)
+
 // RNCreationServiceImpl implements the RNCreationService interface
 type RNCreationServiceImpl struct {
 	client JenkinsClient
@@ -48,15 +61,15 @@ func (s *RNCreationServiceImpl) TriggerStorageCreation(ctx context.Context, requ
 
 	// Prepare parameters from request
 	params := map[string]string{
-		"product":               request.Product,
-		"core_version":          request.CoreVersion,
-		"env_login":             request.EnvLogin,
-		"build_chart_version":   request.BuildChartVersion,
-		"branch_name":           request.BranchName,
-		"custom_orch_zip_url":   request.CustomOrchZipURL,
-		"oni_image":             request.OniImage,
-		"email":                 request.Email,
-		"layering":              request.Layering,
+		"product":             request.Product,
+		"core_version":        request.CoreVersion,
+		"env_login":           request.EnvLogin,
+		"build_chart_version": request.BuildChartVersion,
+		"branch_name":         request.BranchName,
+		"custom_orch_zip_url": request.CustomOrchZipURL,
+		"oni_image":           request.OniImage,
+		"email":               request.Email,
+		"layering":            request.Layering,
 	}
 
 	// Make POST request to trigger job using direct HTTP client
@@ -87,7 +100,7 @@ func (s *RNCreationServiceImpl) GetLatestCustomizationJob(ctx context.Context, b
 
 	// Encode branch name for URL - Jenkins job names with slashes need %252F encoding
 	encodedBranch := strings.ReplaceAll(branch, "/", "%252F")
-	
+
 	// Jenkins delivery customization job URL with build details
 	// Use tree parameter to get build results in one call
 	jobURL := fmt.Sprintf("https://jenkins-delivery.oss.corp.amdocs.aws/job/Delivery/job/ATT_OSO/job/customization/job/%s/api/json?tree=builds[number,url,result,timestamp,building]", encodedBranch)
@@ -112,7 +125,6 @@ func (s *RNCreationServiceImpl) GetLatestCustomizationJob(ctx context.Context, b
 			Building  bool   `json:"building"`
 		} `json:"builds"`
 	}
-
 
 	if err := json.Unmarshal(data, &jobInfo); err != nil {
 		return nil, fmt.Errorf("failed to parse job info for branch '%s': %w", branch, err)
@@ -206,7 +218,6 @@ func (s *RNCreationServiceImpl) GetEKSClusterNameFromJob(ctx context.Context, jo
 	return clusterName, nil
 }
 
-
 // GetOniImageFromBitbucket retrieves the latest oni_image value from Bitbucket commit messages
 func (s *RNCreationServiceImpl) GetOniImageFromBitbucket(ctx context.Context, branch, repoName, username, token string) (string, error) {
 	// Validate input parameters
@@ -287,7 +298,7 @@ func (s *RNCreationServiceImpl) GetOniImageFromBitbucket(ctx context.Context, br
 	// Look for commits by jenkins with oni_docker_version message
 	re := regexp.MustCompile(`update oni_docker_version with value\s*(.+)`)
 	jenkinsCommitCount := 0
-	
+
 	for _, commit := range commitsResp.Values {
 		if strings.ToLower(commit.Author.DisplayName) == "jenkins" {
 			jenkinsCommitCount++
@@ -414,7 +425,6 @@ func (s *RNCreationServiceImpl) GetBuildDescription(ctx context.Context, jobURL 
 	return buildInfo.Description, nil
 }
 
-
 // TriggerStorageCreationWithCredentials triggers the ATT_Storage_Creation Jenkins job with explicit credentials
 func (s *RNCreationServiceImpl) TriggerStorageCreationWithCredentials(ctx context.Context, request *types.RNCreationRequest, username, token string) (*types.RNCreationResponse, error) {
 	// Validate request
@@ -428,15 +438,15 @@ func (s *RNCreationServiceImpl) TriggerStorageCreationWithCredentials(ctx contex
 
 	// Prepare parameters from request
 	params := map[string]string{
-		"product":               request.Product,
-		"core_version":          request.CoreVersion,
-		"env_login":             request.EnvLogin,
-		"build_chart_version":   request.BuildChartVersion,
-		"branch_name":           request.BranchName,
-		"custom_orch_zip_url":   request.CustomOrchZipURL,
-		"oni_image":             request.OniImage,
-		"email":                 request.Email,
-		"layering":              request.Layering,
+		"product":             request.Product,
+		"core_version":        request.CoreVersion,
+		"env_login":           request.EnvLogin,
+		"build_chart_version": request.BuildChartVersion,
+		"branch_name":         request.BranchName,
+		"custom_orch_zip_url": request.CustomOrchZipURL,
+		"oni_image":           request.OniImage,
+		"email":               request.Email,
+		"layering":            request.Layering,
 	}
 
 	// Make POST request to trigger job using credentials
@@ -489,12 +499,12 @@ func (s *RNCreationServiceImpl) makeStorageCreationRequestWithAuth(ctx context.C
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	
+
 	// Add CSRF crumb if available
 	if crumb != "" && crumbField != "" {
 		req.Header.Set(crumbField, crumb)
 	}
-	
+
 	// Use explicit Jenkins credentials
 	if username != "" && token != "" {
 		req.SetBasicAuth(username, token)
@@ -548,7 +558,7 @@ func (s *RNCreationServiceImpl) getCrumbToken(ctx context.Context, client *http.
 	}
 
 	var crumbResp struct {
-		Crumb            string `json:"crumb"`
+		Crumb             string `json:"crumb"`
 		CrumbRequestField string `json:"crumbRequestField"`
 	}
 
@@ -563,7 +573,7 @@ func (s *RNCreationServiceImpl) getCrumbToken(ctx context.Context, client *http.
 func (s *RNCreationServiceImpl) GetCorePatchCharts(ctx context.Context, clusterName string) ([]types.CorePatchInfo, error) {
 	startTime := time.Now()
 	log.Printf("[TIMING] GetCorePatchCharts started for cluster: %s", clusterName)
-	
+
 	if clusterName == "" {
 		return nil, fmt.Errorf("cluster name cannot be empty")
 	}
@@ -614,9 +624,9 @@ func (s *RNCreationServiceImpl) executeCommandWithOutput(ctx context.Context, co
 // Uses the same proven patterns as the main OCD command executor
 func (s *RNCreationServiceImpl) executeCommandWithOutputInDir(ctx context.Context, command string, workingDir string) (string, error) {
 	cfg := config.Load()
-	
+
 	var cmd *exec.Cmd
-	
+
 	// Use the exact same pattern as the main command executor
 	switch runtime.GOOS {
 	case "windows":
@@ -624,10 +634,10 @@ func (s *RNCreationServiceImpl) executeCommandWithOutputInDir(ctx context.Contex
 			// Convert paths to WSL format using the same function as command executor
 			wslWorkingDir := s.convertToWSLPath(workingDir)
 			wslCommand := s.convertToWSLCommand(command)
-			
+
 			// Build WSL command using the same pattern as buildWSLDirectCommand
 			fullCommand := s.buildWSLCommand(wslCommand, wslWorkingDir)
-			
+
 			cmd = exec.CommandContext(ctx, "wsl", "--user", cfg.WSLUser, "bash", "-l", "-c", fullCommand)
 		} else {
 			return "", fmt.Errorf("WSL not available on Windows. Please install WSL to use OCD")
@@ -639,29 +649,40 @@ func (s *RNCreationServiceImpl) executeCommandWithOutputInDir(ctx context.Contex
 	default:
 		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
-	
-	// Use the same environment setup as command executor
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLUMNS=120", "LINES=30")
-	
+
+	// Set up proper environment to avoid terminal issues and kubectl problems
+	cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",            // Fix terminal type
+		"COLUMNS=120",                    // Fix screen width
+		"LINES=30",                       // Fix screen height
+		"DEBIAN_FRONTEND=noninteractive", // Prevent interactive prompts
+		"AWS_PAGER=",                     // Disable AWS CLI pager
+	)
+
+	log.Printf("DEBUG: Executing command in %s: %s", workingDir, command)
 	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+
 	if err != nil {
-		return "", fmt.Errorf("command execution failed: %w, output: %s", err, string(output))
+		log.Printf("ERROR: Command failed in %s: %s, Error: %v, Output: %s", workingDir, command, err, outputStr)
+		return "", fmt.Errorf("command execution failed: %w, output: %s", err, outputStr)
 	}
-	
-	return string(output), nil
+
+	log.Printf("DEBUG: Command completed successfully, output length: %d bytes", len(outputStr))
+	return outputStr, nil
 }
 
 // convertToWSLPath converts Windows paths to WSL paths (same as command executor)
 func (s *RNCreationServiceImpl) convertToWSLPath(windowsPath string) string {
-	if runtime.GOOS != "windows" { 
-		return windowsPath 
+	if runtime.GOOS != "windows" {
+		return windowsPath
 	}
 	wslPath := strings.ReplaceAll(windowsPath, "\\", "/")
-	if strings.HasPrefix(wslPath, "C:") { 
-		wslPath = "/mnt/c" + wslPath[2:] 
-	} else if len(wslPath) >= 2 && wslPath[1] == ':' { 
+	if strings.HasPrefix(wslPath, "C:") {
+		wslPath = "/mnt/c" + wslPath[2:]
+	} else if len(wslPath) >= 2 && wslPath[1] == ':' {
 		drive := strings.ToLower(string(wslPath[0]))
-		wslPath = "/mnt/" + drive + wslPath[2:] 
+		wslPath = "/mnt/" + drive + wslPath[2:]
 	}
 	return wslPath
 }
@@ -677,16 +698,16 @@ func (s *RNCreationServiceImpl) convertToWSLCommand(command string) string {
 	if runtime.GOOS != "windows" {
 		return command
 	}
-	
+
 	// Convert Windows paths in the command to WSL paths
 	wslCommand := command
-	
+
 	// Replace Windows drive paths with WSL paths
 	if strings.Contains(wslCommand, "C:") {
 		wslCommand = strings.ReplaceAll(wslCommand, "C:", "/mnt/c")
 	}
 	wslCommand = strings.ReplaceAll(wslCommand, "\\", "/")
-	
+
 	return wslCommand
 }
 
@@ -701,35 +722,42 @@ func (s *RNCreationServiceImpl) extractValueFromDescription(description, key str
 	return ""
 }
 
-// createTempScript creates a temporary script with proper line ending handling
-func (s *RNCreationServiceImpl) createTempScript() (string, string, error) {
-	scriptPath := "../deploy-scripts/scripts/get-helm-charts.sh"
-	
+// createTempScriptFromPath creates a temporary script with proper line ending handling
+func (s *RNCreationServiceImpl) createTempScriptFromPath(scriptPath, tempDirPrefix, tempScriptName string) (string, string, error) {
 	// Read and normalize script content
 	scriptContent, err := s.readAndNormalizeScript(scriptPath)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("failed to read script: %w", err)
 	}
-	
+
 	// Create temporary directory and script
-	tempDir, err := os.MkdirTemp("", "helm-charts-script_*")
+	tempDir, err := os.MkdirTemp("", tempDirPrefix+"_*")
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create temp dir: %w", err)
 	}
-	
-	tempScriptPath := filepath.Join(tempDir, "get-helm-charts.sh")
+
+	tempScriptPath := filepath.Join(tempDir, tempScriptName)
 	if err := os.WriteFile(tempScriptPath, []byte(scriptContent), 0755); err != nil {
 		os.RemoveAll(tempDir)
 		return "", "", fmt.Errorf("failed to write temp script: %w", err)
 	}
-	
+
 	// Setup shared scripts
 	if err := s.setupSharedScripts(tempDir); err != nil {
 		os.RemoveAll(tempDir)
 		return "", "", fmt.Errorf("failed to setup shared scripts: %w", err)
 	}
-	
+
 	return tempDir, tempScriptPath, nil
+}
+
+// createTempScript creates a temporary script for helm charts with proper line ending handling
+func (s *RNCreationServiceImpl) createTempScript() (string, string, error) {
+	return s.createTempScriptFromPath(
+		helmChartsScriptPath,
+		"helm-charts-script",
+		helmChartsScriptName,
+	)
 }
 
 // readAndNormalizeScript reads a script file and normalizes line endings
@@ -738,7 +766,7 @@ func (s *RNCreationServiceImpl) readAndNormalizeScript(scriptPath string) (strin
 	if err != nil {
 		return "", fmt.Errorf("failed to read script file: %w", err)
 	}
-	
+
 	// Convert Windows line endings to Unix line endings for bash compatibility
 	content := strings.ReplaceAll(string(scriptBytes), "\r\n", "\n")
 	content = strings.ReplaceAll(content, "\r", "\n")
@@ -751,20 +779,20 @@ func (s *RNCreationServiceImpl) setupSharedScripts(tempDir string) error {
 	if err := os.MkdirAll(tempSharedDir, 0755); err != nil {
 		return fmt.Errorf("failed to create temp shared dir: %w", err)
 	}
-	
+
 	sharedScriptsDir := "../deploy-scripts/scripts/shared"
 	sharedFiles, err := filepath.Glob(filepath.Join(sharedScriptsDir, "*.sh"))
 	if err != nil {
 		return fmt.Errorf("failed to glob shared scripts: %w", err)
 	}
-	
+
 	for _, sharedFile := range sharedFiles {
 		if err := s.copySharedScript(sharedFile, tempSharedDir); err != nil {
 			// Log error but continue with other files
 			log.Printf("Warning: Failed to copy shared script %s: %v", sharedFile, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -774,7 +802,7 @@ func (s *RNCreationServiceImpl) copySharedScript(srcPath, destDir string) error 
 	if err != nil {
 		return err
 	}
-	
+
 	fileName := filepath.Base(srcPath)
 	destPath := filepath.Join(destDir, fileName)
 	return os.WriteFile(destPath, []byte(content), 0644)
@@ -794,17 +822,17 @@ func (s *RNCreationServiceImpl) shellEscape(str string) string {
 // parseHelmOutput parses the output from helm ls commands across namespaces
 func (s *RNCreationServiceImpl) parseHelmOutput(output string) []types.CorePatchInfo {
 	var result []types.CorePatchInfo
-	
+
 	lines := strings.Split(output, "\n")
 	currentNamespace := ""
 	var currentCharts []string
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		
+
 		// Check if this is a namespace header (ends with "namespace:")
 		if strings.HasSuffix(line, "namespace:") {
 			// Save previous namespace data if exists
@@ -814,7 +842,7 @@ func (s *RNCreationServiceImpl) parseHelmOutput(output string) []types.CorePatch
 					Charts:    currentCharts,
 				})
 			}
-			
+
 			// Start new namespace
 			currentNamespace = strings.TrimSuffix(line, " namespace:")
 			currentCharts = []string{}
@@ -825,7 +853,7 @@ func (s *RNCreationServiceImpl) parseHelmOutput(output string) []types.CorePatch
 			}
 		}
 	}
-	
+
 	// Add the last namespace if it has data
 	if currentNamespace != "" && len(currentCharts) > 0 {
 		result = append(result, types.CorePatchInfo{
@@ -833,72 +861,127 @@ func (s *RNCreationServiceImpl) parseHelmOutput(output string) []types.CorePatch
 			Charts:    currentCharts,
 		})
 	}
-	
+
 	return result
 }
 
-// GenerateRNTableData generates the complete data structure for RN table
+// ColumnData represents the result of fetching data for a specific table column
+type ColumnData struct {
+	Name     string
+	Content  string
+	Error    error
+	Duration time.Duration
+}
+
+// GenerateRNTableData generates the complete data structure for RN table using safe sequential execution
 func (s *RNCreationServiceImpl) GenerateRNTableData(ctx context.Context, request *types.RNTableRequest) (*types.RNTableData, error) {
 	overallStart := time.Now()
 	log.Printf("[TIMING] GenerateRNTableData started")
-	
-	if request == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-	if request.CustomizationJobURL == "" {
-		return nil, fmt.Errorf("customization job URL cannot be empty")
+
+	// Validate input
+	if err := s.validateRNTableRequest(request); err != nil {
+		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
-	// Get EKS cluster name from customization job
-	step1Start := time.Now()
+	// Step 1: Get EKS cluster name (required by other operations)
+	clusterStart := time.Now()
 	clusterName, err := s.GetEKSClusterNameFromJob(ctx, request.CustomizationJobURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get EKS cluster name: %w", err)
 	}
-	log.Printf("[TIMING] Get EKS cluster name: %v", time.Since(step1Start))
+	log.Printf("[TIMING] Get EKS cluster name: %v", time.Since(clusterStart))
 
-	// Get TLC version from customization job
-	step2Start := time.Now()
+	// Step 2: Get TLC version (no kubectl dependency)
+	tlcStart := time.Now()
 	tlcVersion, err := s.GetTLCVersionFromJob(ctx, request.CustomizationJobURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get TLC version: %w", err)
+		log.Printf("ERROR: Failed to get TLC version: %v", err)
+		tlcVersion = "[TLC version unavailable]"
 	}
-	log.Printf("[TIMING] Get TLC version: %v", time.Since(step2Start))
+	log.Printf("[TIMING] Get TLC version: %v", time.Since(tlcStart))
 
-	// Get core patch/charts information
-	step3Start := time.Now()
-	corePatchInfo, err := s.GetCorePatchCharts(ctx, clusterName)
+	// Step 3: Get core patch charts (uses kubectl - must be sequential)
+	coreStart := time.Now()
+	corePatchCharts, err := s.populateCorePatchChartsColumn(ctx, clusterName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get core patch charts: %w", err)
+		log.Printf("ERROR: Failed to get core patch charts: %v", err)
+		corePatchCharts = fmt.Sprintf("[Error connecting to cluster '%s']", clusterName)
 	}
-	log.Printf("[TIMING] Get core patch charts: %v", time.Since(step3Start))
+	log.Printf("[TIMING] Get core patch charts: %v", time.Since(coreStart))
 
-	// Get image versions
-	step4Start := time.Now()
+	// Step 4: Get image versions (uses kubectl - must be sequential after step 3)
+	imageStart := time.Now()
 	attImage, guidedTaskImage, customizationImage, err := s.GetImageVersions(ctx, clusterName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get image versions: %w", err)
+		log.Printf("ERROR: Failed to get image versions: %v", err)
+		attImage = "[ATT image unavailable]"
+		guidedTaskImage = "[Guided task image unavailable]"
+		customizationImage = "[Customization image unavailable]"
 	}
-	log.Printf("[TIMING] Get image versions: %v", time.Since(step4Start))
+	log.Printf("[TIMING] Get image versions: %v", time.Since(imageStart))
 
-	// Format the data
-	step5Start := time.Now()
-	corePatchCharts := s.formatCorePatchCharts(corePatchInfo)
+	// Step 5: Format all data
+	formatStart := time.Now()
 	customOrchZip := s.formatCustomOrchZip(request.CustomOrchZipURL)
-	commentsInstructions := s.formatCommentsInstructions(tlcVersion, clusterName, request.OniImage, attImage, guidedTaskImage, customizationImage)
-	log.Printf("[TIMING] Format data: %v", time.Since(step5Start))
+	commentsInstructions := s.formatCommentsInstructions(tlcVersion, clusterName, request.OniImage, attImage, guidedTaskImage, customizationImage, request.StorageJobURL)
+	log.Printf("[TIMING] Format data: %v", time.Since(formatStart))
 
-	overallDuration := time.Since(overallStart)
-	log.Printf("[TIMING] GenerateRNTableData TOTAL: %v", overallDuration)
+	// Build final result
+	tableData := &types.RNTableData{
+		Application:            defaultApplication,
+		DefectNumber:           defaultDefectNumber,
+		CorePatchCharts:        corePatchCharts,
+		CustomOrchestrationZip: customOrchZip,
+		CommitID:               defaultCommitID,
+		CommentsInstructions:   commentsInstructions,
+	}
 
-	return &types.RNTableData{
-		Application:              "NEO-OSO",
-		DefectNumber:             "[To be populated]",
-		CorePatchCharts:          corePatchCharts,
-		CustomOrchestrationZip:   customOrchZip,
-		CommitID:                 "NA",
-		CommentsInstructions:     commentsInstructions,
-	}, nil
+	log.Printf("[TIMING] GenerateRNTableData TOTAL: %v", time.Since(overallStart))
+	return tableData, nil
+}
+
+// validateRNTableRequest validates the input request
+func (s *RNCreationServiceImpl) validateRNTableRequest(request *types.RNTableRequest) error {
+	if request == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+	if request.CustomizationJobURL == "" {
+		return fmt.Errorf("customization job URL is required")
+	}
+	return nil
+}
+
+// NOTE: Parallel execution functions removed to prevent kubectl config corruption
+// Sequential execution is safer and more reliable for kubectl operations
+
+// populateCorePatchChartsColumn fetches and formats data for the Core Patch/Charts column
+func (s *RNCreationServiceImpl) populateCorePatchChartsColumn(ctx context.Context, clusterName string) (string, error) {
+	corePatchInfo, err := s.GetCorePatchCharts(ctx, clusterName)
+	if err != nil {
+		log.Printf("ERROR: Failed to get core patch charts for cluster %s: %v", clusterName, err)
+		// Return a user-friendly error message instead of failing completely
+		return fmt.Sprintf("[Error connecting to cluster '%s' - please check cluster connectivity]", clusterName), nil
+	}
+
+	formattedCharts := s.formatCorePatchCharts(corePatchInfo)
+	if formattedCharts == "[Charts info not available]" {
+		// This means the script ran but returned no data
+		return fmt.Sprintf("[No helm charts found in cluster '%s']", clusterName), nil
+	}
+
+	return formattedCharts, nil
+}
+
+// populateCommentsInstructionsColumn fetches and formats data for the Comments/Instructions column
+// NOTE: This function now expects TLC version and image versions to be passed in,
+// since they're fetched sequentially in the main function to prevent kubectl config corruption
+func (s *RNCreationServiceImpl) formatCommentsInstructionsFromData(tlcVersion, clusterName, oniImage, attImage, guidedTaskImage, customizationImage, storageJobURL string) string {
+	return s.formatCommentsInstructions(tlcVersion, clusterName, oniImage, attImage, guidedTaskImage, customizationImage, storageJobURL)
+}
+
+// populateCustomOrchestrationZipColumn formats data for the Custom Orchestration Zip column
+func (s *RNCreationServiceImpl) populateCustomOrchestrationZipColumn(customOrchZipURL string) string {
+	return s.formatCustomOrchZip(customOrchZipURL)
 }
 
 // formatCustomOrchZip formats the custom orchestration ZIP URL for display
@@ -921,12 +1004,12 @@ func (s *RNCreationServiceImpl) formatCorePatchCharts(corePatchInfo []types.Core
 			// Format namespace header
 			namespaceHeader := fmt.Sprintf("%s namespace:", info.Namespace)
 			formatted = append(formatted, namespaceHeader)
-			
+
 			// Add each chart on its own line
 			for _, chart := range info.Charts {
 				formatted = append(formatted, chart)
 			}
-			
+
 			// Add empty line between namespaces
 			formatted = append(formatted, "")
 		}
@@ -945,7 +1028,7 @@ func (s *RNCreationServiceImpl) formatCorePatchCharts(corePatchInfo []types.Core
 func (s *RNCreationServiceImpl) GetImageVersions(ctx context.Context, clusterName string) (string, string, string, error) {
 	startTime := time.Now()
 	log.Printf("[TIMING] GetImageVersions started for cluster: %s", clusterName)
-	
+
 	if clusterName == "" {
 		return "", "", "", fmt.Errorf("cluster name cannot be empty")
 	}
@@ -983,33 +1066,11 @@ func (s *RNCreationServiceImpl) GetImageVersions(ctx context.Context, clusterNam
 
 // createImageVersionTempScript creates a temporary script for image version retrieval
 func (s *RNCreationServiceImpl) createImageVersionTempScript() (string, string, error) {
-	scriptPath := "../deploy-scripts/scripts/get-image-versions.sh"
-	
-	// Read and normalize script content
-	scriptContent, err := s.readAndNormalizeScript(scriptPath)
-	if err != nil {
-		return "", "", err
-	}
-	
-	// Create temporary directory and script
-	tempDir, err := os.MkdirTemp("", "image-versions-script_*")
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	
-	tempScriptPath := filepath.Join(tempDir, "get-image-versions.sh")
-	if err := os.WriteFile(tempScriptPath, []byte(scriptContent), 0755); err != nil {
-		os.RemoveAll(tempDir)
-		return "", "", fmt.Errorf("failed to write temp script: %w", err)
-	}
-	
-	// Setup shared scripts
-	if err := s.setupSharedScripts(tempDir); err != nil {
-		os.RemoveAll(tempDir)
-		return "", "", fmt.Errorf("failed to setup shared scripts: %w", err)
-	}
-	
-	return tempDir, tempScriptPath, nil
+	return s.createTempScriptFromPath(
+		imageVersionsScriptPath,
+		"image-versions-script",
+		imageVersionsScriptName,
+	)
 }
 
 // executeImageVersionScript executes the image version script
@@ -1021,14 +1082,14 @@ func (s *RNCreationServiceImpl) executeImageVersionScript(ctx context.Context, s
 // parseImageVersionOutput parses the output from image version script
 func (s *RNCreationServiceImpl) parseImageVersionOutput(output string) (string, string, string) {
 	var attImage, guidedTaskImage, customizationImage string
-	
+
 	lines := strings.Split(output, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		
+
 		if strings.HasPrefix(line, "ATT image: ") {
 			attImage = strings.TrimPrefix(line, "ATT image: ")
 		} else if strings.HasPrefix(line, "Guided task image: ") {
@@ -1037,12 +1098,12 @@ func (s *RNCreationServiceImpl) parseImageVersionOutput(output string) (string, 
 			customizationImage = strings.TrimPrefix(line, "Customization image: ")
 		}
 	}
-	
+
 	return attImage, guidedTaskImage, customizationImage
 }
 
-// formatCommentsInstructions formats the comments/instructions field with TLC version, EKS cluster name, and image versions
-func (s *RNCreationServiceImpl) formatCommentsInstructions(tlcVersion, clusterName, oniImage, attImage, guidedTaskImage, customizationImage string) string {
+// formatCommentsInstructions formats the comments/instructions field with TLC version, EKS cluster name, image versions, and storage job URL
+func (s *RNCreationServiceImpl) formatCommentsInstructions(tlcVersion, clusterName, oniImage, attImage, guidedTaskImage, customizationImage, storageJobURL string) string {
 	result := fmt.Sprintf("TLC Version = %s\neks_clustername = %s", tlcVersion, clusterName)
 	if oniImage != "" {
 		result += fmt.Sprintf("\nONI image: %s", oniImage)
@@ -1056,6 +1117,8 @@ func (s *RNCreationServiceImpl) formatCommentsInstructions(tlcVersion, clusterNa
 	if customizationImage != "" {
 		result += fmt.Sprintf("\nCustomization image: %s", customizationImage)
 	}
+	if storageJobURL != "" {
+		result += fmt.Sprintf("\nStorage: %s", storageJobURL)
+	}
 	return result
 }
-

@@ -38,20 +38,22 @@ get_image_versions_from_cluster() {
         exit 1
     fi
     
-    # Execute the kubectl commands to get image versions
+    # Execute kubectl command once and parse output for all image versions
     write_colored_output "Fetching image versions from dop namespace..." "blue"
     
-    # Get ATT image version
+    # Get all pod YAML once and parse for all image versions
+    local pods_yaml
+    pods_yaml=$(bash -l -c 'proxy on 2>/dev/null || true && kubectl get pods -n dop -o yaml' 2>/dev/null)
+    
+    # Parse the single output for all three image versions
     local att_version
-    att_version=$(bash -l -c 'proxy on 2>/dev/null || true && kubectl get pods -n dop -o yaml | grep -E "att/.*:10\.4.*develop.*SNAPSHOT" | grep -v customization | head -1 | sed "s/.*://" | tr -d " \""' 2>/dev/null)
+    att_version=$(echo "$pods_yaml" | grep -E "att/.*:10\.4.*.*SNAPSHOT" | grep -v customization | head -1 | sed "s/.*://" | tr -d " \"")
     
-    # Get Guided task image version
     local guided_version
-    guided_version=$(bash -l -c 'proxy on 2>/dev/null || true && kubectl get pods -n dop -o yaml | grep -B10 -A10 "guided.*task" | grep -E ":10\.4.*develop.*SNAPSHOT" | head -1 | sed "s/.*://" | tr -d " \""' 2>/dev/null)
+    guided_version=$(echo "$pods_yaml" | grep -B10 -A10 "guided.*task" | grep -E ":10\.4.*.*SNAPSHOT" | head -1 | sed "s/.*://" | tr -d " \"")
     
-    # Get Customization image version
     local customization_version
-    customization_version=$(bash -l -c 'proxy on 2>/dev/null || true && kubectl get pods -n dop -o yaml | grep -E "customization.*:10\.4.*develop.*SNAPSHOT" | head -1 | sed "s/.*://" | tr -d " \""' 2>/dev/null)
+    customization_version=$(echo "$pods_yaml" | grep -E "customization.*:10\.4.*.*SNAPSHOT" | head -1 | sed "s/.*://" | tr -d " \"")
     
     if [[ $? -ne 0 ]]; then
         write_colored_output "Error: Failed to execute kubectl commands" "red"
