@@ -113,22 +113,17 @@ export function initializeHFAdoption() {
 			});
 			let data = await res.json();
 			if (!data.success) { showStatus(data.message || 'Dry-run failed', 'error'); return; }
-			// For now, just show message; future: render diff table with highlights
-			showStatus('Dry-run completed. Ready to apply.', 'success');
-			applyBtn.textContent = 'Apply Changes';
-			// Confirm and apply
-			if (confirm('Proceed to commit and push changes?')) {
-				applyBtn.disabled = true;
-				applyBtn.textContent = 'Applying...';
-				payload.dry_run = false;
-                res = await fetch('/api/hf/update-pom', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
-				data = await res.json();
-				if (data.success) {
-					showStatus('POM updated and pushed successfully', 'success');
-				} else {
-					showStatus(data.message || 'Apply failed', 'error');
-				}
-			}
+            // Apply immediately (no confirmation step)
+            applyBtn.disabled = true;
+            applyBtn.textContent = 'Applying...';
+            payload.dry_run = false;
+            res = await fetch('/api/hf/update-pom', { method: 'POST', headers: headers, body: JSON.stringify(payload) });
+            data = await res.json();
+            if (data.success) {
+                showStatus('POM updated and pushed successfully', 'success');
+            } else {
+                showStatus(data.message || 'Apply failed', 'error');
+            }
 		} catch (e) {
 			showStatus(e.message || 'Error applying changes', 'error');
 		} finally {

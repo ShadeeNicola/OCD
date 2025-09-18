@@ -1,4 +1,22 @@
 /* HF Adoption Page - Hot Fix Adoption */
+/* grid removed per new layout */
+
+/* Ensure branch dropdown overlays version preview within same page */
+#hf-branch-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 300001 !important;
+}
+
+.hf-upload-card .card { overflow: visible; }
+
+.hf-upload-card .branch-select-container { position: relative; z-index: 300000; }
+
+.hf-preview-card .card { position: relative; z-index: 1; overflow: visible; }
+
+/* Elevate entire upload card block above following sections */
+.hf-upload-card { position: relative; z-index: 300000; }
 
 /* Drag-and-drop zone */
 .drop-zone {
