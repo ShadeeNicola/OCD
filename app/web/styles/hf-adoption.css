@@ -1,5 +1,35 @@
 /* HF Adoption Page - Hot Fix Adoption */
 
+/* Drag-and-drop zone */
+.drop-zone {
+    border: 2px dashed var(--accent-primary);
+    border-radius: 10px;
+    padding: 32px;
+    background: rgba(45, 125, 232, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    cursor: pointer;
+}
+
+.drop-zone.drag-over {
+    background: rgba(45, 125, 232, 0.18);
+    border-color: var(--accent-primary);
+}
+
+.drop-zone .drop-zone-instructions {
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.drop-zone .btn-secondary { margin-top: 12px; }
+
+/* Ensure branch dropdown overlays preview */
+.hf-branch-card { position: relative; z-index: 1040; }
+.hf-preview-card { position: relative; z-index: 1020; }
+
 /* Coming Soon Styles - Shared with RN Creation */
 .coming-soon {
     text-align: center;

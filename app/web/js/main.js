@@ -6,6 +6,7 @@ import { initializeScaling } from './jenkins-scaling.js';
 import { initializeRNCreation, enableTriggerButton } from './jenkins-rn-creation.js';
 import { initializeSettings, getSavedBitbucketCredentials, getSavedCredentials } from './settings.js';
 import { initializeClusterSelector } from './cluster-selector.js';
+import { initializeHFAdoption } from './hf-adoption.js';
 
 class OCDApp {
     constructor() {
@@ -135,6 +136,10 @@ class OCDApp {
                 // Re-initialize RN creation when page is active
                 this.initializeRNCreation();
                 initializeRNCreation();
+                break;
+            case 'hf-adoption':
+                // Initialize HF Adoption page
+                initializeHFAdoption();
                 break;
         }
     }

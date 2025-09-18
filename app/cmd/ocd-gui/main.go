@@ -58,6 +58,10 @@ func main() {
     // RN Creation routes
     http.HandleFunc("/api/rn/create", httpapi.HandleRNCreate)
     
+    // HF Adoption routes
+    http.HandleFunc("/api/hf/parse-email", httpapi.HandleHFParseEmail)
+    http.HandleFunc("/api/hf/update-pom", httpapi.HandleHFUpdatePOM)
+    
     // SSE-based deployment routes
     http.HandleFunc("/api/deploy/start", httpapi.HandleDeployStart(cfg, runner))
     http.HandleFunc("/api/deploy/stream/", httpapi.HandleDeployStream)

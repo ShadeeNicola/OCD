@@ -43,6 +43,43 @@ export function ansiToHtml(text) {
     });
 }
 
+// Shared: Attach basic Bitbucket-authenticated branch loader to provided elements
+export async function loadCustomizationBranches(bitbucketCreds, targetListEl, placeholderInputEl) {
+    if (!targetListEl || !placeholderInputEl) return [];
+    placeholderInputEl.placeholder = 'Loading branches...';
+    placeholderInputEl.disabled = true;
+    try {
+        const headers = {};
+        if (bitbucketCreds && bitbucketCreds.username && bitbucketCreds.token) {
+            headers['X-Bitbucket-Username'] = bitbucketCreds.username;
+            headers['X-Bitbucket-Token'] = bitbucketCreds.token;
+        }
+        const resp = await fetch('/api/git/branches/customization', { headers });
+        const data = await resp.json();
+        if (data.success && data.branches) {
+            targetListEl.innerHTML = '';
+            data.branches.forEach(b => {
+                const option = document.createElement('div');
+                option.className = 'branch-option';
+                option.textContent = b.name;
+                option.dataset.branch = b.name;
+                targetListEl.appendChild(option);
+            });
+            placeholderInputEl.placeholder = 'Select a branch...';
+            return data.branches;
+        } else {
+            placeholderInputEl.placeholder = data.message || 'Failed to load branches';
+            return [];
+        }
+    } catch (e) {
+        placeholderInputEl.placeholder = e.message || 'Error loading branches';
+        return [];
+    } finally {
+        placeholderInputEl.disabled = false;
+    }
+}
+
+
 export function cleanAnsiEscapes(text) {
     return text.replace(/\x1b\[[0-9;]*m/g, '');
 }
