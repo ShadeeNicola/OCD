@@ -20,6 +20,10 @@ VERSION_TAG=${CI_COMMIT_TAG:-dev}
 COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+# Cross-compilation relies on pure Go builds; disable CGO unless explicitly enabled.
+CGO_ENABLED=${CGO_ENABLED:-0}
+export CGO_ENABLED
+
 LDFLAGS="-s -w -X app/internal/version.Version=$VERSION_TAG -X app/internal/version.Commit=$COMMIT_SHA -X app/internal/version.Date=$BUILD_DATE"
 
 echo "Building OCD for all platforms..."
@@ -30,11 +34,10 @@ echo "Building Windows executable..."
 GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD.exe" ./cmd/ocd-gui
 
 echo "Building Linux executables..."
-# for 32bit support, uncomment the below lines
 GOOS=linux GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x64" ./cmd/ocd-gui
-#GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
+GOOS=linux GOARCH=386 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-x86" ./cmd/ocd-gui
 GOOS=linux GOARCH=arm64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM64" ./cmd/ocd-gui
-#GOOS=linux GOARCH=arm go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
+GOOS=linux GOARCH=arm GOARM=${GOARM:-7} go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-Linux-ARM" ./cmd/ocd-gui
 
 echo "Building macOS executables..."
 GOOS=darwin GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DIST_DIR/OCD-Tool-macOS-Intel" ./cmd/ocd-gui

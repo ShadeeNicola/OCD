@@ -30,7 +30,10 @@ Thumbs.db
 *.so
 *.dylib
 dist/
-build/
+# Allow workflow scripts under build but not generated artifacts
+# build/
+!build/
+build/*.tmp
 temp/
 
 # Allow our distribution binaries

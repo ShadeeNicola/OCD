@@ -1,0 +1,46 @@
+name: Build Release Artifacts
+
+on:
+  release:
+    types:
+      - published
+      - edited
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build cross-platform executables
+        env:
+          DIST_DIR: dist
+        run: |
+          chmod +x build/build-all-executables.sh
+          ./build/build-all-executables.sh
+
+      - name: Show generated artifacts
+        run: ls -al dist
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/OCD.exe
+            dist/OCD-Tool-Linux-x64
+            dist/OCD-Tool-Linux-x86
+            dist/OCD-Tool-Linux-ARM64
+            dist/OCD-Tool-Linux-ARM
+            dist/OCD-Tool-macOS-Intel
+            dist/OCD-Tool-macOS-AppleSilicon
+
