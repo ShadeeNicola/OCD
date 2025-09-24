@@ -6,6 +6,9 @@ on:
       - published
       - edited
   workflow_dispatch:
+  push:
+    branches:
+      - feature/hf-adoption
 
 jobs:
   build-and-upload:
@@ -33,6 +36,7 @@ jobs:
         run: ls -al dist
 
       - name: Upload release assets
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
