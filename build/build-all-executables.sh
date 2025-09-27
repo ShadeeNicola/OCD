@@ -16,7 +16,14 @@ mkdir -p "$DIST_DIR"
 CURRENT_OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 CURRENT_ARCH=$(uname -m)
 
-VERSION_TAG=${CI_COMMIT_TAG:-dev}
+VERSION_TAG="dev"
+if [[ -n "${CI_COMMIT_TAG:-}" ]]; then
+    VERSION_TAG="${CI_COMMIT_TAG}"
+elif [[ -n "${GITHUB_REF_NAME:-}" ]]; then
+    VERSION_TAG="${GITHUB_REF_NAME}"
+elif [[ -n "${GITHUB_REF:-}" ]]; then
+    VERSION_TAG="${GITHUB_REF##*/}"
+fi
 COMMIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
 BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
