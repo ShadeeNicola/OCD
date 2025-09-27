@@ -24,6 +24,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: true
+          cache-dependency-path: app/go.sum
 
       - name: Build cross-platform executables
         env:
