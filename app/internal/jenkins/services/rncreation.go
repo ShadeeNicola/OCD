@@ -38,14 +38,54 @@ const (
 
 // RNCreationServiceImpl implements the RNCreationService interface
 type RNCreationServiceImpl struct {
-	client JenkinsClient
+	configuration *config.Config
+	client        JenkinsClient
 }
 
 // NewRNCreationService creates a new RN Creation service instance
-func NewRNCreationService(client JenkinsClient) RNCreationService {
+func NewRNCreationService(configuration *config.Config, client JenkinsClient) RNCreationService {
 	return &RNCreationServiceImpl{
-		client: client,
+		configuration: configuration,
+		client:        client,
 	}
+}
+
+func (s *RNCreationServiceImpl) storageJobURL(parts ...string) string {
+	if s.configuration == nil {
+		defaults := config.DefaultEndpoints()
+		return defaults.StorageJobURL(parts...)
+	}
+	return s.configuration.Endpoints.StorageJobURL(parts...)
+}
+
+func (s *RNCreationServiceImpl) customizationBaseURL() string {
+	base := config.DefaultEndpoints().CustomizationJenkinsBaseURL
+	if s.configuration != nil {
+		configured := strings.TrimSpace(s.configuration.Endpoints.CustomizationJenkinsBaseURL)
+		if configured != "" {
+			base = configured
+		}
+	}
+	return strings.TrimRight(base, "/")
+}
+
+func (s *RNCreationServiceImpl) bitbucketBaseURL() string {
+	base := config.DefaultEndpoints().BitbucketBaseURL
+	if s.configuration != nil {
+		configured := strings.TrimSpace(s.configuration.Endpoints.BitbucketBaseURL)
+		if configured != "" {
+			base = configured
+		}
+	}
+	return strings.TrimRight(base, "/")
+}
+
+func (s *RNCreationServiceImpl) httpClient(timeout time.Duration) *http.Client {
+	client := &http.Client{Timeout: timeout}
+	if s.configuration != nil && s.configuration.TLS.InsecureSkipVerify {
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	}
+	return client
 }
 
 // TriggerStorageCreation triggers the ATT_Storage_Creation Jenkins job
@@ -55,9 +95,7 @@ func (s *RNCreationServiceImpl) TriggerStorageCreation(ctx context.Context, requ
 		return nil, fmt.Errorf("validation failed: %v", validation.Errors)
 	}
 
-	// Build job URL - Jenkins storage creation job URL
-	// This is a different Jenkins server than the main configured one
-	jobURL := "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/buildWithParameters"
+	jobURL := s.storageJobURL("buildWithParameters")
 
 	// Prepare parameters from request
 	params := map[string]string{
@@ -82,13 +120,15 @@ func (s *RNCreationServiceImpl) TriggerStorageCreation(ctx context.Context, requ
 	}
 
 	// Return response with job URL
+	rootURL := s.storageJobURL()
+
 	return &types.RNCreationResponse{
 		JobStatus: &types.JobStatus{
 			Status: "queued",
-			URL:    "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/",
+			URL:    rootURL,
 		},
 		Message: "Storage creation job triggered successfully",
-		JobURL:  "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/",
+		JobURL:  rootURL,
 	}, nil
 }
 
@@ -103,7 +143,8 @@ func (s *RNCreationServiceImpl) GetLatestCustomizationJob(ctx context.Context, b
 
 	// Jenkins delivery customization job URL with build details
 	// Use tree parameter to get build results in one call
-	jobURL := fmt.Sprintf("https://jenkins-delivery.oss.corp.amdocs.aws/job/Delivery/job/ATT_OSO/job/customization/job/%s/api/json?tree=builds[number,url,result,timestamp,building]", encodedBranch)
+	base := s.customizationBaseURL()
+	jobURL := fmt.Sprintf("%s/job/Delivery/job/ATT_OSO/job/customization/job/%s/api/json?tree=builds[number,url,result,timestamp,building]", base, encodedBranch)
 
 	// Get job information
 	data, err := s.client.GetWithAuth(ctx, jobURL)
@@ -231,17 +272,18 @@ func (s *RNCreationServiceImpl) GetOniImageFromBitbucket(ctx context.Context, br
 		return "", fmt.Errorf("Bitbucket credentials (username and token) are required")
 	}
 
-	// Create HTTP client with TLS config for Bitbucket
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   30 * time.Second,
-	}
+	client := s.httpClient(30 * time.Second)
 
 	// Bitbucket API URL for commits
-	url := fmt.Sprintf("https://ossbucket:7990/rest/api/1.0/projects/ATTSVO/repos/%s/commits?until=%s&limit=50", repoName, branch)
+	base := s.bitbucketBaseURL()
+	project := ""
+	if s.configuration != nil {
+		project = s.configuration.Endpoints.BitbucketProjectKey
+	}
+	if project == "" {
+		project = "ATTSVO"
+	}
+	url := fmt.Sprintf("%s/rest/api/1.0/projects/%s/repos/%s/commits?until=%s&limit=50", base, project, repoName, branch)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -432,9 +474,7 @@ func (s *RNCreationServiceImpl) TriggerStorageCreationWithCredentials(ctx contex
 		return nil, fmt.Errorf("validation failed: %v", validation.Errors)
 	}
 
-	// Build job URL - Jenkins storage creation job URL
-	// This is a different Jenkins server than the main configured one
-	jobURL := "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/buildWithParameters"
+	jobURL := s.storageJobURL("buildWithParameters")
 
 	// Prepare parameters from request
 	params := map[string]string{
@@ -456,13 +496,15 @@ func (s *RNCreationServiceImpl) TriggerStorageCreationWithCredentials(ctx contex
 	}
 
 	// Return response with job URL
+	rootURL := s.storageJobURL()
+
 	return &types.RNCreationResponse{
 		JobStatus: &types.JobStatus{
 			Status: "queued",
-			URL:    "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/",
+			URL:    rootURL,
 		},
 		Message: "Storage creation job triggered successfully",
-		JobURL:  "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/",
+		JobURL:  rootURL,
 	}, nil
 }
 
@@ -470,14 +512,8 @@ func (s *RNCreationServiceImpl) TriggerStorageCreationWithCredentials(ctx contex
 func (s *RNCreationServiceImpl) makeStorageCreationRequestWithAuth(ctx context.Context, jobURL string, params map[string]string, username, token string) error {
 	// Create HTTP client with TLS config and cookie jar for session management
 	jar, _ := cookiejar.New(nil)
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-		Timeout:   30 * time.Second,
-		Jar:       jar, // Enable cookie support for session management
-	}
+	client := s.httpClient(30 * time.Second)
+	client.Jar = jar // Enable cookie support for session management
 
 	// Get crumb token first for CSRF protection (this will establish session)
 	crumb, crumbField, err := s.getCrumbToken(ctx, client, username, token)
@@ -528,7 +564,14 @@ func (s *RNCreationServiceImpl) makeStorageCreationRequestWithAuth(ctx context.C
 // getCrumbToken retrieves the CSRF crumb token from Jenkins
 func (s *RNCreationServiceImpl) getCrumbToken(ctx context.Context, client *http.Client, username, token string) (string, string, error) {
 	// Get the base URL from the job URL
-	baseURL := "http://ilososp030.corp.amdocs.com:7070"
+	baseURL := config.DefaultEndpoints().StorageJenkinsBaseURL
+	if s.configuration != nil {
+		configured := strings.TrimSpace(s.configuration.Endpoints.StorageJenkinsBaseURL)
+		if configured != "" {
+			baseURL = configured
+		}
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
 	crumbURL := baseURL + "/crumbIssuer/api/json"
 
 	req, err := http.NewRequestWithContext(ctx, "GET", crumbURL, nil)
@@ -623,7 +666,7 @@ func (s *RNCreationServiceImpl) executeCommandWithOutput(ctx context.Context, co
 // executeCommandWithOutputInDir executes a shell command in a specific directory and returns the output
 // Uses the same proven patterns as the main OCD command executor
 func (s *RNCreationServiceImpl) executeCommandWithOutputInDir(ctx context.Context, command string, workingDir string) (string, error) {
-	cfg := config.Load()
+	configuration := config.Load()
 
 	var cmd *exec.Cmd
 
@@ -638,7 +681,7 @@ func (s *RNCreationServiceImpl) executeCommandWithOutputInDir(ctx context.Contex
 			// Build WSL command using the same pattern as buildWSLDirectCommand
 			fullCommand := s.buildWSLCommand(wslCommand, wslWorkingDir)
 
-			cmd = exec.CommandContext(ctx, "wsl", "--user", cfg.WSLUser, "bash", "-l", "-c", fullCommand)
+			cmd = exec.CommandContext(ctx, "wsl", "--user", configuration.WSLUser, "bash", "-l", "-c", fullCommand)
 		} else {
 			return "", fmt.Errorf("WSL not available on Windows. Please install WSL to use OCD")
 		}

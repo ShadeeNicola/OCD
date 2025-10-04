@@ -7,19 +7,24 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/config"
 	"app/internal/jenkins/errors"
 	"app/internal/jenkins/types"
 )
 
+const scalingJobBuildSuffix = "/buildWithParameters"
+
 // ScalingServiceImpl implements the ScalingService interface
 type ScalingServiceImpl struct {
-	client JenkinsClient
+	configuration *config.Config
+	client        JenkinsClient
 }
 
 // NewScalingService creates a new scaling service instance
-func NewScalingService(client JenkinsClient) ScalingService {
+func NewScalingService(configuration *config.Config, client JenkinsClient) ScalingService {
 	return &ScalingServiceImpl{
-		client: client,
+		configuration: configuration,
+		client:        client,
 	}
 }
 
@@ -72,7 +77,7 @@ func (s *ScalingServiceImpl) TriggerScale(ctx context.Context, request *types.Sc
 
 	// Get the base job URL for linking
 	baseJobURL, _ := s.getScalingJobURL()
-	baseJobURL = strings.TrimSuffix(baseJobURL, "/buildWithParameters")
+	baseJobURL = strings.TrimSuffix(baseJobURL, scalingJobBuildSuffix)
 
 	response := &types.ScaleResponse{
 		JobStatus: &types.JobStatus{
@@ -110,8 +115,7 @@ func (s *ScalingServiceImpl) GetScaleJobStatus(ctx context.Context, jobNumber in
 	}
 
 	// Construct the API URL for the specific job
-	apiURL := fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown/%d/api/json",
-		s.client.GetBaseURL(), jobNumber)
+	apiURL := fmt.Sprintf("%s/%d/api/json", s.scalingJobBaseURL(), jobNumber)
 
 	// Get job status from Jenkins API
 	responseBody, err := s.client.GetWithAuth(ctx, apiURL)
@@ -237,10 +241,22 @@ func (s *ScalingServiceImpl) GetSupportedClusters(ctx context.Context) ([]string
 
 // getScalingJobURL constructs the URL for the scaling job
 func (s *ScalingServiceImpl) getScalingJobURL() (string, error) {
-	baseURL := s.client.GetBaseURL()
-	// This uses the hardcoded path from the configuration
-	// In a real implementation, this would come from the jobs.yaml config
-	return fmt.Sprintf("%s/job/Utility/job/OpsUtil/job/scaleUpOrDown/buildWithParameters", baseURL), nil
+	return s.scalingJobBaseURL() + scalingJobBuildSuffix, nil
+}
+
+func (s *ScalingServiceImpl) scalingJobBaseURL() string {
+	base := strings.TrimSuffix(s.client.GetBaseURL(), "/")
+	return base + config.NormalizeJobPath(s.scalingJobPath())
+}
+
+func (s *ScalingServiceImpl) scalingJobPath() string {
+	if s.configuration != nil {
+		path := strings.TrimSpace(s.configuration.Endpoints.ScalingJenkinsJobPath)
+		if path != "" {
+			return path
+		}
+	}
+	return config.DefaultEndpoints().ScalingJenkinsJobPath
 }
 
 // parseJobStatusResponse parses the JSON response from Jenkins job status API

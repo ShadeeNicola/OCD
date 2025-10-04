@@ -1,4 +1,5 @@
 import { getSavedBitbucketCredentials } from './settings.js';
+import { getRuntimeConfigValue } from './runtime-config.js';
 import { loadCustomizationBranches } from './utils.js';
 
 export function initializeHFAdoption() {
@@ -88,7 +89,7 @@ export function initializeHFAdoption() {
 		try {
 			applyBtn.disabled = true;
 			applyBtn.textContent = 'Diffing...';
-			const repoURL = 'https://ossbucket:7990/scm/attsvo/parent-pom.git';
+			const repoURL = getRuntimeConfigValue('hfParentRepoUrl');
 			const creds = getSavedBitbucketCredentials();
             const payload = {
 				repo_url: repoURL,

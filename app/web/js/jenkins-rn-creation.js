@@ -1,5 +1,6 @@
 // Jenkins RN Creation Module
 import { areCredentialsConfigured, showSetupModal, getSavedCredentials, getSavedBitbucketCredentials } from './settings.js';
+import { storageJobRoot, storageJobUrl } from './runtime-config.js';
 
 let currentJobNumber = null;
 let currentQueueURL = null;
@@ -77,9 +78,9 @@ async function handleTriggerStorageJob() {
                 await getLatestBuildNumber();
             }, 3000);
         } else if (response.job_status?.number && response.job_status.number > 0) {
-            currentJobNumber = response.job_status.number;
-            // Set storage job URL with build number
-            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
+		currentJobNumber = response.job_status.number;
+		// Set storage job URL with build number
+		storageJobURL = storageJobUrl(String(currentJobNumber));
             console.log('DEBUG: Set storageJobURL with build number from initial response:', storageJobURL);
 
             // Show Generate RN button since we have the build number
@@ -190,28 +191,29 @@ async function getLatestBuildNumber() {
             oni_image: formData.oni_image
         });
 
-        // Call Jenkins API with trigger parameters for matching
-        const params = new URLSearchParams({
-            build_url: 'http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation',
-            username: credentials.username,
-            token: credentials.token,
-            product: formData.product,
-            core_version: formData.core_version,
-            branch_name: formData.branch_name,
-            custom_orch_zip_url: formData.custom_orch_zip_url,
-            oni_image: formData.oni_image
+		const response = await fetch('/api/jenkins/build-info', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				build_url: storageJobRoot(),
+				username: credentials.username,
+				token: credentials.token,
+                product: formData.product,
+                core_version: formData.core_version,
+                branch_name: formData.branch_name,
+                custom_orch_zip_url: formData.custom_orch_zip_url,
+                oni_image: formData.oni_image
+            })
         });
-
-        console.log('DEBUG: API URL:', `/api/jenkins/build-info?${params.toString()}`);
-
-        const response = await fetch(`/api/jenkins/build-info?${params.toString()}`);
         const data = await response.json();
 
         console.log('DEBUG: Latest build info response:', data);
 
-        if (data.success && data.build_info && data.build_info.lastBuild && data.build_info.lastBuild.number) {
-            currentJobNumber = data.build_info.lastBuild.number;
-            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
+		if (data.success && data.build_info && data.build_info.lastBuild && data.build_info.lastBuild.number) {
+			currentJobNumber = data.build_info.lastBuild.number;
+			storageJobURL = storageJobUrl(String(currentJobNumber));
             console.log('DEBUG: Set storageJobURL from latest build:', storageJobURL);
             showGenerateRNButton();
         } else {
@@ -556,17 +558,27 @@ async function populateRNTable() {
             await getLatestBuildNumber();
         }
 
-        // Ensure we have the build number in the URL
-        if (storageJobURL && currentJobNumber && !storageJobURL.includes(currentJobNumber.toString())) {
-            storageJobURL = `http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/${currentJobNumber}`;
-            console.log('DEBUG: Fixed storageJobURL with build number:', storageJobURL);
-        }
+		// Ensure we have the build number in the URL
+		if (storageJobURL && currentJobNumber && !storageJobURL.includes(currentJobNumber.toString())) {
+			storageJobURL = storageJobUrl(String(currentJobNumber));
+			console.log('DEBUG: Fixed storageJobURL with build number:', storageJobURL);
+		}
 
-        const apiUrl = `/api/jenkins/rn-table-data?customization_job_url=${encodeURIComponent(customizationJobUrl)}&custom_orch_zip_url=${encodeURIComponent(customOrchZipUrl)}&oni_image=${encodeURIComponent(oniImage)}&storage_job_url=${encodeURIComponent(storageJobURL || '')}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
-        console.log('DEBUG: Calling API URL:', apiUrl);
-        
-        const response = await fetch(apiUrl);
-        console.log('DEBUG: API response status:', response.status);
+        const response = await fetch('/api/jenkins/rn-table-data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                customization_job_url: customizationJobUrl,
+                custom_orch_zip_url: customOrchZipUrl,
+                oni_image: oniImage,
+                storage_job_url: storageJobURL || '',
+                username: credentials.username,
+                token: credentials.token
+            })
+        });
+        console.log('DEBUG: RN table data response status:', response.status);
         
         const data = await response.json();
         console.log('DEBUG: API response data:', data);

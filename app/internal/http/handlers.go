@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"app/internal/config"
 	"app/internal/executor"
 	"app/internal/progress"
 	"app/internal/ui"
@@ -248,56 +249,55 @@ type GitBranch struct {
 	LastCommit string `json:"lastCommit"`
 }
 
-func HandleGitBranchesCustomization(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func HandleGitBranchesCustomization(configuration *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-	// Try to get credentials from request headers or environment
-	username := r.Header.Get("X-Bitbucket-Username")
-	token := r.Header.Get("X-Bitbucket-Token")
+		username := r.Header.Get("X-Bitbucket-Username")
+		token := r.Header.Get("X-Bitbucket-Token")
 
-	// Fallback to environment variables if headers not provided
-	if username == "" {
-		username = os.Getenv("BITBUCKET_USERNAME")
-	}
-	if token == "" {
-		token = os.Getenv("BITBUCKET_TOKEN")
-	}
+		if username == "" {
+			username = os.Getenv("BITBUCKET_USERNAME")
+		}
+		if token == "" {
+			token = os.Getenv("BITBUCKET_TOKEN")
+		}
 
-	var branches []GitBranch
-	var err error
+		var branches []GitBranch
+		var err error
 
-	if username != "" && token != "" {
-		// Use Bitbucket REST API with authentication
-		branches, err = fetchBranchesFromBitbucketAPI(username, token)
-		if err != nil {
+		if username != "" && token != "" {
+			branches, err = fetchBranchesFromBitbucketAPI(configuration, username, token)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"success":  false,
+					"message":  "Failed to fetch branches from customization repository: " + err.Error(),
+					"branches": []GitBranch{},
+				})
+				return
+			}
+		} else {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"success":  false,
-				"message":  "Failed to fetch branches from customization repository: " + err.Error(),
-				"branches": []GitBranch{},
+				"success":      false,
+				"message":      "Authentication required. Please configure Bitbucket credentials in Settings.",
+				"branches":     []GitBranch{},
+				"requiresAuth": true,
 			})
 			return
 		}
-	} else {
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"success":      false,
-			"message":      "Authentication required. Please configure Bitbucket credentials in Settings.",
-			"branches":     []GitBranch{},
-			"requiresAuth": true,
+			"success":  true,
+			"message":  "Git branches retrieved successfully",
+			"branches": branches,
 		})
-		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":  true,
-		"message":  "Git branches retrieved successfully",
-		"branches": branches,
-	})
 }
 
 type BitbucketBranch struct {
@@ -329,53 +329,57 @@ type BitbucketResponse struct {
 	NextPageStart int               `json:"nextPageStart"`
 }
 
-// HandleRNCreate handles RN creation requests
-func HandleRNCreate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
+func newHTTPClient(configuration *config.Config) *http.Client {
+	if configuration != nil && configuration.TLS.InsecureSkipVerify {
+		return &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
 	}
-
-	var req struct {
-		Branch string `json:"branch"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"message": "Invalid request format",
-		})
-		return
-	}
-
-	if req.Branch == "" {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"message": "Branch is required",
-		})
-		return
-	}
-
-	// For now, return a placeholder response
-	// The actual implementation will be completed with the Jenkins integration
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "RN creation initiated for branch: " + req.Branch,
-		"jobUrl":  "http://ilososp030.corp.amdocs.com:7070/job/ATT_Storage_Creation/",
-	})
+	return &http.Client{}
 }
 
-func fetchBranchesFromBitbucketAPI(username, token string) ([]GitBranch, error) {
-	// Create HTTP client with TLS config
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
+// HandleRNCreate handles RN creation requests
+func HandleRNCreate(configuration *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-	// Bitbucket REST API URL for branches with metadata for commit timestamps
-	url := "https://ossbucket:7990/rest/api/1.0/projects/ATTSVO/repos/customization/branches?limit=100&details=true"
+		var req struct {
+			Branch string `json:"branch"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Invalid request format",
+			})
+			return
+		}
+
+		if req.Branch == "" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "Branch is required",
+			})
+			return
+		}
+
+		jobURL := configuration.Endpoints.StorageJobURL()
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "RN creation initiated for branch: " + req.Branch,
+			"jobUrl":  jobURL,
+		})
+	}
+}
+
+func fetchBranchesFromBitbucketAPI(configuration *config.Config, username, token string) ([]GitBranch, error) {
+	client := newHTTPClient(configuration)
+
+	url := configuration.Endpoints.BitbucketBranchesAPI()
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

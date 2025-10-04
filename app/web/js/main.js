@@ -7,6 +7,7 @@ import { initializeRNCreation, enableTriggerButton } from './jenkins-rn-creation
 import { initializeSettings, getSavedBitbucketCredentials, getSavedCredentials } from './settings.js';
 import { initializeClusterSelector } from './cluster-selector.js';
 import { initializeHFAdoption } from './hf-adoption.js';
+import { loadRuntimeConfig } from './runtime-config.js';
 
 class OCDApp {
     constructor() {
@@ -694,14 +695,18 @@ class OCDApp {
             // Get saved Jenkins credentials for Jenkins API calls
             const jenkinsCredentials = getSavedCredentials();
             
-            // Follow the same pattern as scaling - use query params for GET requests
-            let url = `/api/jenkins/rn-customization-job?branch=${encodeURIComponent(branchName)}`;
+            const payload = { branch: branchName };
             if (jenkinsCredentials && jenkinsCredentials.username && jenkinsCredentials.token) {
-                url += `&username=${encodeURIComponent(jenkinsCredentials.username)}&token=${encodeURIComponent(jenkinsCredentials.token)}`;
+                payload.username = jenkinsCredentials.username;
+                payload.token = jenkinsCredentials.token;
             }
 
-            const response = await fetch(url, {
-                method: 'GET'
+            const response = await fetch('/api/jenkins/rn-customization-job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
             });
             const data = await response.json();
 
@@ -786,9 +791,17 @@ class OCDApp {
         try {
             
             // Call backend API to get build parameters
-            const apiUrl = `/api/jenkins/rn-build-parameters?job_url=${encodeURIComponent(jobUrl)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
-            
-            const response = await fetch(apiUrl);
+            const response = await fetch('/api/jenkins/rn-build-parameters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    job_url: jobUrl,
+                    username: credentials.username,
+                    token: credentials.token
+                })
+            });
             const data = await response.json();
             
             
@@ -825,9 +838,18 @@ class OCDApp {
             // Include branch parameter for Nexus fallback
             const branch = this.selectedBranch ? this.selectedBranch.name : '';
             console.log(`Fetching artifact URL for branch: ${branch}`);
-            const apiUrl = `/api/jenkins/rn-artifact-url?job_url=${encodeURIComponent(jobUrl)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}&branch=${encodeURIComponent(branch)}`;
-
-            const response = await fetch(apiUrl);
+            const response = await fetch('/api/jenkins/rn-artifact-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    job_url: jobUrl,
+                    username: credentials.username,
+                    token: credentials.token,
+                    branch
+                })
+            });
             const data = await response.json();
 
             console.log('Artifact URL response:', data);
@@ -846,9 +868,17 @@ class OCDApp {
     async fetchOniImage(credentials, oniImageInput) {
         try {
             
-            const apiUrl = `/api/jenkins/rn-oni-image?branch=${encodeURIComponent(this.selectedBranch.name)}&username=${encodeURIComponent(credentials.username)}&token=${encodeURIComponent(credentials.token)}`;
-            
-            const response = await fetch(apiUrl);
+            const response = await fetch('/api/jenkins/rn-oni-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    branch: this.selectedBranch.name,
+                    username: credentials.username,
+                    token: credentials.token
+                })
+            });
             const data = await response.json();
             
             
@@ -949,8 +979,12 @@ class OCDApp {
 // Global functions for HTML onclick handlers
 window.sendMail = function() {
     const subject = encodeURIComponent('OCD Tool - Contact');
+    const body = encodeURIComponent('');
     window.open(`mailto:shadee.nicola@amdocs.com?subject=${subject}&body=${body}`);
 };
 
-// Initialize the application
-new OCDApp();
+// Initialize the application once runtime config is loaded
+loadRuntimeConfig()
+    .then(() => {
+        new OCDApp();
+    });

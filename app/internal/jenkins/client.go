@@ -17,33 +17,33 @@ import (
 
 // Client represents a Jenkins HTTP client with authentication
 type Client struct {
-	baseURL     string
-	username    string
-	token       string
-	httpClient  *http.Client
-	config      *jenkinsconfig.JobsConfig
-	options     *types.ClientOptions
+	baseURL    string
+	username   string
+	token      string
+	httpClient *http.Client
+	config     *jenkinsconfig.JobsConfig
+	options    *types.ClientOptions
 }
 
 // ClientConfig represents configuration for creating a Jenkins client
 type ClientConfig struct {
-	URL       string
-	Username  string
-	Token     string
-	Options   *types.ClientOptions
+	URL      string
+	Username string
+	Token    string
+	Options  *types.ClientOptions
 }
 
 // NewClient creates a new Jenkins client from app config
-func NewClient(cfg config.JenkinsConfig) (*Client, error) {
+func NewClient(configuration config.JenkinsConfig) (*Client, error) {
 	return NewClientWithConfig(ClientConfig{
-		URL:      cfg.URL,
-		Username: cfg.Username,
-		Token:    cfg.Token,
+		URL:      configuration.URL,
+		Username: configuration.Username,
+		Token:    configuration.Token,
 	})
 }
 
 // NewClientWithConfig creates a new Jenkins client with detailed configuration
-func NewClientWithConfig(cfg ClientConfig) (*Client, error) {
+func NewClientWithConfig(configuration ClientConfig) (*Client, error) {
 	// Load Jenkins jobs configuration
 	jobsConfig, err := jenkinsconfig.LoadConfig()
 	if err != nil {
@@ -51,7 +51,7 @@ func NewClientWithConfig(cfg ClientConfig) (*Client, error) {
 	}
 
 	// Set default client options if not provided
-	options := cfg.Options
+	options := configuration.Options
 	if options == nil {
 		options = &types.ClientOptions{
 			Timeout:       time.Duration(jobsConfig.Global.DefaultTimeoutSeconds) * time.Second,
@@ -67,9 +67,9 @@ func NewClientWithConfig(cfg ClientConfig) (*Client, error) {
 	}
 
 	client := &Client{
-		baseURL:    strings.TrimSuffix(cfg.URL, "/"),
-		username:   cfg.Username,
-		token:      cfg.Token,
+		baseURL:    strings.TrimSuffix(configuration.URL, "/"),
+		username:   configuration.Username,
+		token:      configuration.Token,
 		httpClient: httpClient,
 		config:     jobsConfig,
 		options:    options,
@@ -93,7 +93,7 @@ func (c *Client) GetWithAuth(ctx context.Context, url string) ([]byte, error) {
 	return c.doRequest(ctx, "GET", url, nil, true)
 }
 
-// PostWithAuth performs a POST request with authentication  
+// PostWithAuth performs a POST request with authentication
 func (c *Client) PostWithAuth(ctx context.Context, url string, data map[string]string) ([]byte, error) {
 	return c.doRequest(ctx, "POST", url, data, true)
 }
@@ -224,18 +224,18 @@ func (c *Client) handleHTTPError(statusCode int, body, url string) error {
 	switch statusCode {
 	case 401, 403:
 		return errors.NewAuthenticationError(
-			fmt.Sprintf("authentication failed (status: %d)", statusCode), 
+			fmt.Sprintf("authentication failed (status: %d)", statusCode),
 			nil,
 		)
 	case 404:
 		return errors.NewJobNotFoundError(
-			"", 
-			fmt.Sprintf("resource not found: %s (status: %d)", url, statusCode), 
+			"",
+			fmt.Sprintf("resource not found: %s (status: %d)", url, statusCode),
 			nil,
 		)
 	case 408, 504:
 		return errors.NewTimeoutError(
-			fmt.Sprintf("request timeout (status: %d)", statusCode), 
+			fmt.Sprintf("request timeout (status: %d)", statusCode),
 			nil,
 		)
 	case 422:
