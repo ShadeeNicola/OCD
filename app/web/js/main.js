@@ -4,6 +4,7 @@ import { HistoryManager } from './history-manager.js';
 import { ProgressManager } from './progress-manager.js';
 import { initializeScaling } from './jenkins-scaling.js';
 import { initializeRNCreation, enableTriggerButton } from './jenkins-rn-creation.js';
+import { initializeAutomationReports } from './automation-reports.js';
 import { initializeSettings, getSavedBitbucketCredentials, getSavedCredentials } from './settings.js';
 import { initializeClusterSelector } from './cluster-selector.js';
 import { initializeHFAdoption } from './hf-adoption.js';
@@ -137,6 +138,9 @@ class OCDApp {
                 // Re-initialize RN creation when page is active
                 this.initializeRNCreation();
                 initializeRNCreation();
+                break;
+            case 'automation-reports':
+                initializeAutomationReports();
                 break;
             case 'hf-adoption':
                 // Initialize HF Adoption page

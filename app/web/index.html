@@ -37,6 +37,7 @@
                     <a href="#landing" class="nav-link active" data-page="landing">Deploy</a>
                     <a href="#scaling" class="nav-link" data-page="scaling">Scaling</a>
                     <a href="#rn-creation" class="nav-link" data-page="rn-creation">RN Creation</a>
+                    <a href="#automation-reports" class="nav-link" data-page="automation-reports">Automation Reports</a>
                     <a href="#hf-adoption" class="nav-link" data-page="hf-adoption">HF Adoption</a>
                     <a href="#settings" class="nav-link" data-page="settings">Settings</a>
                 </nav>
@@ -552,6 +553,140 @@
             </main>
         </div>
 
+        <!-- Automation Reports Page -->
+        <div class="page" id="automation-reports-page">
+            <main class="main">
+                <div class="container">
+                    <section class="hero">
+                        <div class="hero-content">
+                            <h1 class="hero-title">Automation Reports</h1>
+                            <p class="hero-subtitle">Test analytics and regression analysis</p>
+                        </div>
+                    </section>
+
+                    <section class="card" id="automation-overview-card">
+                        <div class="card-header">
+                            <h2>Build Comparison</h2>
+                            <p>Select builds to compare test results and changes</p>
+                        </div>
+                        <div class="card-content">
+                            <div class="form-layout">
+                                <div class="form-group">
+                                    <label for="build-select-a">Build A (baseline)</label>
+                                    <select id="build-select-a"></select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="build-select-b">Build B (comparison)</label>
+                                    <select id="build-select-b"></select>
+                                </div>
+                                <div class="form-actions">
+                                    <button id="compare-builds-btn" class="btn-primary">Compare Builds</button>
+                                    <button id="refresh-builds-btn" class="btn-secondary">Refresh Builds</button>
+                                </div>
+                            </div>
+
+                            <div id="automation-status" class="status-message info" style="display: none;"></div>
+
+                            <div id="automation-summary" class="summary-grid" style="display: none;">
+                                <div class="summary-card" data-metric="totalTests">
+                                    <h3>Total Tests</h3>
+                                    <p class="value" id="summary-total-tests">0</p>
+                                    <p class="delta" id="summary-total-tests-delta"></p>
+                                </div>
+                                <div class="summary-card" data-metric="passRate">
+                                    <h3>Pass Rate</h3>
+                                    <p class="value" id="summary-pass-rate">0%</p>
+                                    <p class="delta" id="summary-pass-rate-delta"></p>
+                                </div>
+                                <div class="summary-card" data-metric="avgDuration">
+                                    <h3>Avg Duration</h3>
+                                    <p class="value" id="summary-avg-duration">0s</p>
+                                    <p class="delta" id="summary-avg-duration-delta"></p>
+                                </div>
+                                <div class="summary-card" data-metric="regressions">
+                                    <h3>Regressions</h3>
+                                    <p class="value" id="summary-regressions">0</p>
+                                    <p class="delta" id="summary-progressions">0 Progressions</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card" id="automation-regressions" style="display: none;">
+                        <div class="card-header">
+                            <h2>Regressions</h2>
+                            <p>Tests that passed in build A but failed in build B</p>
+                        </div>
+                        <div class="card-content">
+                            <div class="table-wrapper">
+                                <table class="rn-table compare-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Test</th>
+                                            <th>Build A Status</th>
+                                            <th>Build B Status</th>
+                                            <th>Duration Δ</th>
+                                            <th>Error</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="regressions-body">
+                                        <tr><td colspan="5" class="empty">No regressions detected</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card" id="automation-progressions" style="display: none;">
+                        <div class="card-header">
+                            <h2>Progressions</h2>
+                            <p>Tests that are fixed in build B</p>
+                        </div>
+                        <div class="card-content">
+                            <div class="table-wrapper">
+                                <table class="rn-table compare-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Test</th>
+                                            <th>Build A Status</th>
+                                            <th>Build B Status</th>
+                                            <th>Failed Since</th>
+                                            <th>Duration Δ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="progressions-body">
+                                        <tr><td colspan="5" class="empty">No progressions detected</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card" id="automation-change-candidates" style="display: none;">
+                        <div class="card-header">
+                            <h2>Change Candidates</h2>
+                            <p>Commits between builds that may have impacted results</p>
+                        </div>
+                        <div class="card-content">
+                            <div id="change-candidates-list" class="change-candidates-list"></div>
+                        </div>
+                    </section>
+
+                    <section class="card" id="automation-trends" style="display: none;">
+                        <div class="card-header">
+                            <h2>Test Trends</h2>
+                            <p>Last 10 builds quality trend</p>
+                        </div>
+                        <div class="card-content">
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="automation-trends-chart"></canvas>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+
         <!-- HF Adoption Page -->
         <div class="page" id="hf-adoption-page">
             <main class="main">
@@ -684,5 +819,6 @@
     </div>
 
     <script type="module" src="js/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </body>
 </html>

@@ -13,26 +13,36 @@ type JenkinsClient interface {
 	Post(ctx context.Context, url string, data map[string]string) ([]byte, error)
 	GetWithAuth(ctx context.Context, url string) ([]byte, error)
 	PostWithAuth(ctx context.Context, url string, data map[string]string) ([]byte, error)
-	
+
 	// Authentication
 	IsConfigured() bool
 	GetBaseURL() string
+}
+
+// AutomationService defines the interface for Jenkins automation analytics operations
+type AutomationService interface {
+	GetTestReport(ctx context.Context, buildNumber int) (*types.TestReport, error)
+	GetBuildList(ctx context.Context, limit int) ([]types.AutomationBuildInfo, error)
+	CompareBuilds(ctx context.Context, buildA, buildB int) (*types.BuildComparison, error)
+	GetTestTrends(ctx context.Context, numBuilds int) (*types.TestTrends, error)
+	GetChangesBetweenBuilds(ctx context.Context, buildA, buildB int) ([]types.CommitGroup, error)
+	WithJobPath(jobPath string) AutomationService
 }
 
 // ScalingService defines the interface for EKS cluster scaling operations
 type ScalingService interface {
 	// TriggerScale initiates a scaling operation for an EKS cluster
 	TriggerScale(ctx context.Context, request *types.ScaleRequest) (*types.ScaleResponse, error)
-	
+
 	// GetScaleJobStatus retrieves the status of a scaling job
 	GetScaleJobStatus(ctx context.Context, jobNumber int) (*types.JobStatus, error)
-	
+
 	// GetQueueStatus retrieves the status of a queued scaling job
 	GetQueueStatus(ctx context.Context, queueURL string) (*types.JobStatus, error)
-	
+
 	// ValidateScaleRequest validates a scaling request parameters
 	ValidateScaleRequest(request *types.ScaleRequest) (*types.ValidationResult, error)
-	
+
 	// GetSupportedClusters returns list of clusters that can be scaled (if available)
 	GetSupportedClusters(ctx context.Context) ([]string, error)
 }
@@ -41,16 +51,16 @@ type ScalingService interface {
 type ArtifactsService interface {
 	// ExtractArtifacts extracts deployed artifacts from a Jenkins build
 	ExtractArtifacts(ctx context.Context, request *types.ArtifactExtractionRequest) (*types.ArtifactExtractionResponse, error)
-	
+
 	// GetBuildInfo retrieves detailed information about a Jenkins build
 	GetBuildInfo(ctx context.Context, buildURL string) (*types.BuildInfo, error)
-	
+
 	// ValidateArtifactRequest validates an artifact extraction request
 	ValidateArtifactRequest(request *types.ArtifactExtractionRequest) (*types.ValidationResult, error)
-	
+
 	// GetSupportedArtifactTypes returns list of supported artifact types
 	GetSupportedArtifactTypes() []string
-	
+
 	// FilterArtifacts filters artifacts based on criteria
 	FilterArtifacts(artifacts []types.DeployedArtifact, criteria map[string]interface{}) []types.DeployedArtifact
 }
@@ -59,16 +69,16 @@ type ArtifactsService interface {
 type JobService interface {
 	// TriggerJob triggers a generic Jenkins job
 	TriggerJob(ctx context.Context, jobName string, parameters map[string]string) (*types.JobStatus, error)
-	
+
 	// GetJobStatus retrieves the status of any Jenkins job
 	GetJobStatus(ctx context.Context, jobURL string) (*types.JobStatus, error)
-	
+
 	// GetJobHistory retrieves the build history for a job
 	GetJobHistory(ctx context.Context, jobName string, limit int) ([]*types.JobStatus, error)
-	
+
 	// CancelJob attempts to cancel a running job
 	CancelJob(ctx context.Context, jobURL string) error
-	
+
 	// GetJobHealth retrieves health information for a job
 	GetJobHealth(ctx context.Context, jobName string) (*types.JobHealth, error)
 }
@@ -77,10 +87,10 @@ type JobService interface {
 type MonitoringService interface {
 	// HealthCheck performs a health check on Jenkins services
 	HealthCheck(ctx context.Context) (*types.ServiceStatus, error)
-	
+
 	// GetServiceMetrics retrieves metrics about Jenkins service usage
 	GetServiceMetrics(ctx context.Context) (map[string]interface{}, error)
-	
+
 	// IsJenkinsAvailable checks if Jenkins is available and responsive
 	IsJenkinsAvailable(ctx context.Context) (bool, error)
 }
@@ -89,13 +99,13 @@ type MonitoringService interface {
 type ConfigService interface {
 	// GetJobConfig retrieves configuration for a specific job
 	GetJobConfig(jobName string) (interface{}, error)
-	
+
 	// ReloadConfig reloads the Jenkins configuration
 	ReloadConfig() error
-	
+
 	// ValidateConfig validates the current configuration
 	ValidateConfig() error
-	
+
 	// GetGlobalConfig retrieves global Jenkins configuration
 	GetGlobalConfig() (interface{}, error)
 }
@@ -104,10 +114,10 @@ type ConfigService interface {
 type LoggingService interface {
 	// LogOperation logs a Jenkins operation with context
 	LogOperation(ctx context.Context, operation string, details map[string]interface{})
-	
+
 	// LogError logs a Jenkins error with context
 	LogError(ctx context.Context, operation string, err error, details map[string]interface{})
-	
+
 	// LogMetric logs a metric about Jenkins operations
 	LogMetric(ctx context.Context, metric string, value interface{}, tags map[string]string)
 }
@@ -116,22 +126,22 @@ type LoggingService interface {
 type ServiceFactory interface {
 	// CreateScalingService creates a new scaling service instance
 	CreateScalingService(client JenkinsClient) ScalingService
-	
+
 	// CreateArtifactsService creates a new artifacts service instance
 	CreateArtifactsService(client JenkinsClient) ArtifactsService
-	
+
 	// CreateJobService creates a new job service instance
 	CreateJobService(client JenkinsClient) JobService
-	
+
 	// CreateRNCreationService creates a new RN creation service instance
 	CreateRNCreationService(client JenkinsClient) RNCreationService
-	
+
 	// CreateMonitoringService creates a new monitoring service instance
 	CreateMonitoringService(client JenkinsClient) MonitoringService
-	
+
 	// CreateConfigService creates a new config service instance
 	CreateConfigService() ConfigService
-	
+
 	// CreateLoggingService creates a new logging service instance
 	CreateLoggingService() LoggingService
 }
@@ -140,28 +150,28 @@ type ServiceFactory interface {
 type ServiceManager interface {
 	// GetScalingService returns the scaling service
 	GetScalingService() ScalingService
-	
+
 	// GetArtifactsService returns the artifacts service
 	GetArtifactsService() ArtifactsService
-	
+
 	// GetJobService returns the job service
 	GetJobService() JobService
-	
+
 	// GetRNCreationService returns the RN creation service
 	GetRNCreationService() RNCreationService
-	
+
 	// GetMonitoringService returns the monitoring service
 	GetMonitoringService() MonitoringService
-	
+
 	// GetConfigService returns the config service
 	GetConfigService() ConfigService
-	
+
 	// GetLoggingService returns the logging service
 	GetLoggingService() LoggingService
-	
+
 	// Shutdown gracefully shuts down all services
 	Shutdown(ctx context.Context) error
-	
+
 	// HealthCheck performs health checks on all services
 	HealthCheck(ctx context.Context) map[string]*types.ServiceStatus
 }
@@ -170,13 +180,13 @@ type ServiceManager interface {
 type RequestValidator interface {
 	// ValidateScaleRequest validates scaling requests
 	ValidateScaleRequest(request *types.ScaleRequest) (*types.ValidationResult, error)
-	
+
 	// ValidateArtifactRequest validates artifact extraction requests
 	ValidateArtifactRequest(request *types.ArtifactExtractionRequest) (*types.ValidationResult, error)
-	
+
 	// ValidateJobParameters validates job parameters against configuration
 	ValidateJobParameters(jobName string, parameters map[string]string) (*types.ValidationResult, error)
-	
+
 	// ValidateURL validates Jenkins URLs
 	ValidateURL(url string) (*types.ValidationResult, error)
 }
@@ -185,37 +195,37 @@ type RequestValidator interface {
 type RNCreationService interface {
 	// TriggerStorageCreation triggers the ATT_Storage_Creation Jenkins job
 	TriggerStorageCreation(ctx context.Context, request *types.RNCreationRequest) (*types.RNCreationResponse, error)
-	
+
 	// TriggerStorageCreationWithCredentials triggers the ATT_Storage_Creation Jenkins job with explicit credentials
 	TriggerStorageCreationWithCredentials(ctx context.Context, request *types.RNCreationRequest, username, token string) (*types.RNCreationResponse, error)
-	
+
 	// GetLatestCustomizationJob retrieves the latest successful/unstable customization job for a branch
 	GetLatestCustomizationJob(ctx context.Context, branch string) (*types.CustomizationJob, error)
-	
+
 	// GetTLCVersionFromJob extracts TLC version from a customization job
 	GetTLCVersionFromJob(ctx context.Context, jobURL string) (string, error)
-	
+
 	// GetEKSClusterNameFromJob extracts eks_clustername from a customization job
 	GetEKSClusterNameFromJob(ctx context.Context, jobURL string) (string, error)
-	
+
 	// GetOniImageFromBitbucket retrieves the latest oni_image value from Bitbucket commit messages
 	GetOniImageFromBitbucket(ctx context.Context, branch, repoName, username, token string) (string, error)
-	
+
 	// GetCorePatchCharts executes kubectl commands on EKS cluster to get helm charts info
 	GetCorePatchCharts(ctx context.Context, clusterName string) ([]types.CorePatchInfo, error)
-	
+
 	// GenerateRNTableData generates the complete data structure for RN table
 	GenerateRNTableData(ctx context.Context, request *types.RNTableRequest) (*types.RNTableData, error)
-	
+
 	// ValidateRNRequest validates an RN creation request
 	ValidateRNRequest(request *types.RNCreationRequest) (*types.ValidationResult, error)
-	
+
 	// PopulateRequestFromCustomizationJob auto-populates request fields from customization job
 	PopulateRequestFromCustomizationJob(ctx context.Context, request *types.RNCreationRequest) error
-	
+
 	// GetBuildParameters retrieves build parameters from a Jenkins job
 	GetBuildParameters(ctx context.Context, jobURL string) ([]types.JobParameter, error)
-	
+
 	// GetBuildDescription retrieves build description from a Jenkins job
 	GetBuildDescription(ctx context.Context, jobURL string) (string, error)
 }
@@ -224,13 +234,13 @@ type RNCreationService interface {
 type ResponseParser interface {
 	// ParseJobStatus parses job status from Jenkins API response
 	ParseJobStatus(data []byte) (*types.JobStatus, error)
-	
+
 	// ParseQueueItem parses queue item from Jenkins API response
 	ParseQueueItem(data []byte) (*types.QueueItem, error)
-	
+
 	// ParseBuildInfo parses build information from Jenkins API response
 	ParseBuildInfo(data []byte) (*types.BuildInfo, error)
-	
+
 	// ParseArtifacts parses artifacts from Jenkins HTML response
 	ParseArtifacts(htmlContent string) ([]types.DeployedArtifact, error)
 }

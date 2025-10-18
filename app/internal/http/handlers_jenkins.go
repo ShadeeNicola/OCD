@@ -23,6 +23,7 @@ type JenkinsHandlers struct {
 	scalingService    services.ScalingService
 	artifactsService  services.ArtifactsService
 	rnCreationService services.RNCreationService
+	automationService services.AutomationService
 }
 
 // NewJenkinsHandlers creates a new Jenkins handlers instance
@@ -33,6 +34,7 @@ func NewJenkinsHandlers(configuration *config.Config, client *jenkins.Client) *J
 		scalingService:    services.NewScalingService(configuration, client),
 		artifactsService:  services.NewArtifactsService(client),
 		rnCreationService: services.NewRNCreationService(configuration, client),
+		automationService: services.NewAutomationService(configuration, client),
 	}
 }
 
@@ -1077,4 +1079,198 @@ func (h *JenkinsHandlers) RegisterJenkinsRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/jenkins/rn-artifact-url", h.HandleRNArtifactURL())
 	mux.HandleFunc("/api/jenkins/rn-oni-image", h.HandleRNOniImage())
 	mux.HandleFunc("/api/jenkins/rn-table-data", h.HandleRNTableData())
+
+	mux.HandleFunc("/api/automation/builds", h.HandleAutomationBuilds())
+	mux.HandleFunc("/api/automation/test-report", h.HandleAutomationTestReport())
+	mux.HandleFunc("/api/automation/compare", h.HandleAutomationCompare())
+	mux.HandleFunc("/api/automation/trends", h.HandleAutomationTrends())
+}
+
+func (h *JenkinsHandlers) HandleAutomationBuilds() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		var req struct {
+			Limit    int    `json:"limit"`
+			JobPath  string `json:"jobPath"`
+			Username string `json:"username"`
+			Token    string `json:"token"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		service, err := h.automationServiceForRequest(req.Username, req.Token, req.JobPath)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		ctx := r.Context()
+		builds, err := service.GetBuildList(ctx, req.Limit)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data": map[string]interface{}{
+				"builds":     builds,
+				"totalCount": len(builds),
+			},
+		})
+	}
+}
+
+func (h *JenkinsHandlers) HandleAutomationTestReport() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		var req struct {
+			BuildNumber int    `json:"buildNumber"`
+			JobPath     string `json:"jobPath"`
+			Username    string `json:"username"`
+			Token       string `json:"token"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		service, err := h.automationServiceForRequest(req.Username, req.Token, req.JobPath)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		ctx := r.Context()
+		report, err := service.GetTestReport(ctx, req.BuildNumber)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    report,
+		})
+	}
+}
+
+func (h *JenkinsHandlers) HandleAutomationCompare() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		var req struct {
+			BuildA   int    `json:"buildA"`
+			BuildB   int    `json:"buildB"`
+			JobPath  string `json:"jobPath"`
+			Username string `json:"username"`
+			Token    string `json:"token"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		service, err := h.automationServiceForRequest(req.Username, req.Token, req.JobPath)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		ctx := r.Context()
+		comparison, err := service.CompareBuilds(ctx, req.BuildA, req.BuildB)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    comparison,
+		})
+	}
+}
+
+func (h *JenkinsHandlers) HandleAutomationTrends() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+			return
+		}
+
+		var req struct {
+			NumBuilds int    `json:"numBuilds"`
+			JobPath   string `json:"jobPath"`
+			Username  string `json:"username"`
+			Token     string `json:"token"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		service, err := h.automationServiceForRequest(req.Username, req.Token, req.JobPath)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		ctx := r.Context()
+		trends, err := service.GetTestTrends(ctx, req.NumBuilds)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"success": true,
+			"data":    trends,
+		})
+	}
+}
+
+func (h *JenkinsHandlers) automationServiceForRequest(username, token, jobPath string) (services.AutomationService, error) {
+	hasEnvCredentials := h.client.IsConfigured()
+	hasRequestCredentials := strings.TrimSpace(username) != "" && strings.TrimSpace(token) != ""
+
+	if !hasEnvCredentials && !hasRequestCredentials {
+		return nil, fmt.Errorf("Jenkins credentials not configured. Please set credentials in Settings.")
+	}
+
+	service := h.automationService
+
+	if hasRequestCredentials {
+		tempClient, err := jenkins.NewClientWithConfig(jenkins.ClientConfig{
+			URL:      h.configuration.Endpoints.CustomizationJenkinsBaseURL,
+			Username: username,
+			Token:    token,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("Failed to create Jenkins client: %w", err)
+		}
+		service = services.NewAutomationService(h.configuration, tempClient)
+	}
+
+	if strings.TrimSpace(jobPath) != "" {
+		service = service.WithJobPath(jobPath)
+	}
+
+	return service, nil
 }

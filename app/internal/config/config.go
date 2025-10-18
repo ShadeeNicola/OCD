@@ -34,6 +34,7 @@ type Endpoints struct {
 	StorageJenkinsJobPath       string
 	CustomizationJenkinsBaseURL string
 	ScalingJenkinsJobPath       string
+	AutomationJenkinsJobPath    string
 	BitbucketBaseURL            string
 	BitbucketProjectKey         string
 	BitbucketCustomizationRepo  string
@@ -72,6 +73,7 @@ func defaultEndpoints() Endpoints {
 		StorageJenkinsJobPath:       "/job/ATT_Storage_Creation",
 		CustomizationJenkinsBaseURL: "https://jenkins-delivery.oss.corp.amdocs.aws",
 		ScalingJenkinsJobPath:       "/job/Utility/job/OpsUtil/job/scaleUpOrDown",
+		AutomationJenkinsJobPath:    "/job/Delivery/job/ATT_OSO/job/customization/job/develop",
 		BitbucketBaseURL:            "https://ossbucket:7990",
 		BitbucketProjectKey:         "ATTSVO",
 		BitbucketCustomizationRepo:  "customization",

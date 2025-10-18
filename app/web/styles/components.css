@@ -513,3 +513,78 @@ input[type="password"]:-webkit-autofill:focus {
     border-top: 1px solid var(--border-color);
     justify-content: flex-end;
 }
+
+.status-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-tag.pass {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+}
+
+.status-tag.fail {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
+.status-tag.skip {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+}
+
+.duration-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.duration-delta.positive {
+    color: #ef4444;
+}
+
+.duration-delta.negative {
+    color: #10b981;
+}
+
+.duration-delta.neutral {
+    color: var(--text-secondary);
+}
+
+.compare-table td {
+    vertical-align: top;
+    font-size: 0.9rem;
+}
+
+.compare-table td .test-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.compare-table td .class-name {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.change-candidate .commit-list {
+    margin: 0.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.change-candidate .commit-id {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--accent-primary);
+}

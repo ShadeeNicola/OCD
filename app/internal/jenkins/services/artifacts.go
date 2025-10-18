@@ -139,7 +139,7 @@ func (a *ArtifactsServiceImpl) ValidateArtifactRequest(request *types.ArtifactEx
 			result.Valid = false
 			result.Errors = append(result.Errors, "build_url must be a valid Jenkins build URL containing '/job/'")
 		}
-		
+
 		if !strings.Contains(request.BuildURL, "://") {
 			result.Valid = false
 			result.Errors = append(result.Errors, "build_url must be a complete URL with protocol")
@@ -156,7 +156,7 @@ func (a *ArtifactsServiceImpl) ValidateArtifactRequest(request *types.ArtifactEx
 
 		for _, filterType := range request.FilterTypes {
 			if !supportedMap[filterType] {
-				result.Warnings = append(result.Warnings, 
+				result.Warnings = append(result.Warnings,
 					fmt.Sprintf("filter type '%s' is not in supported types list", filterType))
 			}
 		}
@@ -232,7 +232,7 @@ func (a *ArtifactsServiceImpl) normalizeBuildURL(buildURL string) string {
 	// Remove trailing slashes and API suffixes
 	url := strings.TrimSuffix(buildURL, "/")
 	url = strings.TrimSuffix(url, "/api/json")
-	
+
 	// Ensure it ends with just a slash for HTML requests
 	return url + "/"
 }
@@ -287,7 +287,7 @@ func (a *ArtifactsServiceImpl) parseArtifactURL(artifact *types.DeployedArtifact
 			if len(repoParts) > 0 {
 				artifact.Repository = repoParts[0]
 			}
-			
+
 			// Extract path (everything after repository name)
 			if len(repoParts) > 1 {
 				artifact.Path = strings.Join(repoParts[1:], "/")
@@ -299,13 +299,13 @@ func (a *ArtifactsServiceImpl) parseArtifactURL(artifact *types.DeployedArtifact
 	if artifact.Metadata == nil {
 		artifact.Metadata = make(map[string]string)
 	}
-	
+
 	if strings.Contains(url, "nexus") {
 		artifact.Metadata["source"] = "nexus"
 	} else if strings.Contains(url, "artifactory") {
 		artifact.Metadata["source"] = "artifactory"
 	}
-	
+
 	artifact.Metadata["url_parsed"] = "true"
 }
 
@@ -313,14 +313,14 @@ func (a *ArtifactsServiceImpl) parseArtifactURL(artifact *types.DeployedArtifact
 func (a *ArtifactsServiceImpl) enhanceArtifacts(artifacts []types.DeployedArtifact) {
 	for i := range artifacts {
 		artifact := &artifacts[i]
-		
+
 		if artifact.Metadata == nil {
 			artifact.Metadata = make(map[string]string)
 		}
-		
+
 		// Add classification based on type
 		artifact.Metadata["classification"] = a.classifyArtifact(artifact.Type)
-		
+
 		// Add size category if size is available
 		if artifact.Size > 0 {
 			artifact.Metadata["size_category"] = a.getSizeCategory(artifact.Size)
@@ -392,17 +392,17 @@ func (a *ArtifactsServiceImpl) filterArtifactsByType(artifacts []types.DeployedA
 // parseBuildInfoResponse parses build information from Jenkins API response
 func (a *ArtifactsServiceImpl) parseBuildInfoResponse(data []byte) (*types.BuildInfo, error) {
 	var jenkinsResp struct {
-		Number           int    `json:"number"`
-		URL              string `json:"url"`
-		Result           string `json:"result"`
-		Duration         int64  `json:"duration"`
-		Timestamp        int64  `json:"timestamp"`
-		Building         bool   `json:"building"`
-		Description      string `json:"description"`
-		DisplayName      string `json:"displayName"`
-		FullDisplayName  string `json:"fullDisplayName"`
-		Actions          []json.RawMessage `json:"actions"`
-		ChangeSets       []json.RawMessage `json:"changeSets"`
+		Number          int               `json:"number"`
+		URL             string            `json:"url"`
+		Result          string            `json:"result"`
+		Duration        int64             `json:"duration"`
+		Timestamp       int64             `json:"timestamp"`
+		Building        bool              `json:"building"`
+		Description     string            `json:"description"`
+		DisplayName     string            `json:"displayName"`
+		FullDisplayName string            `json:"fullDisplayName"`
+		Actions         []json.RawMessage `json:"actions"`
+		ChangeSets      []json.RawMessage `json:"changeSets"`
 	}
 
 	if err := json.Unmarshal(data, &jenkinsResp); err != nil {
@@ -473,14 +473,14 @@ func (a *ArtifactsServiceImpl) parseChangesFromChangeSets(changeSets []json.RawM
 	for _, changeSet := range changeSets {
 		var changeSetData struct {
 			Items []struct {
-				CommitID string   `json:"commitId"`
+				CommitID string `json:"commitId"`
 				Author   struct {
 					FullName string `json:"fullName"`
 				} `json:"author"`
-				Comment      string   `json:"comment"`
-				Date         string   `json:"date"`
+				Comment       string   `json:"comment"`
+				Date          string   `json:"date"`
 				AffectedPaths []string `json:"affectedPaths"`
-				Timestamp    int64    `json:"timestamp"`
+				Timestamp     int64    `json:"timestamp"`
 			} `json:"items"`
 		}
 
