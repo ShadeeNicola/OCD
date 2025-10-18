@@ -925,58 +925,6 @@ class OCDApp {
         return null;
     }
 
-    initializeRNCreation() {
-        // Initialize RN Creation page elements
-        const branchSelector = document.getElementById('branch-selector');
-        const branchSearch = document.getElementById('branch-search');
-        const branchDropdownBtn = document.getElementById('branch-dropdown-btn');
-        const branchDropdown = document.getElementById('branch-dropdown');
-        const refreshBranchesBtn = document.getElementById('refresh-branches-btn');
-        const createRNBtn = document.getElementById('create-rn-btn');
-        const refreshJobBtn = document.getElementById('refresh-job-btn');
-        const customizationJobUrl = document.getElementById('customization-job-url');
-
-        if (branchSelector && branchSearch && branchDropdownBtn && branchDropdown && refreshBranchesBtn && createRNBtn) {
-            // Initialize state
-            this.selectedBranch = null;
-            this.allBranches = [];
-            this.isDropdownOpen = false;
-
-            // Load branches on page load
-            this.loadBranches();
-
-            // Set up event listeners
-            refreshBranchesBtn.addEventListener('click', () => this.loadBranches());
-            branchSearch.addEventListener('click', () => this.toggleBranchDropdown());
-            branchDropdownBtn.addEventListener('click', () => this.toggleBranchDropdown());
-
-            // Add refresh job button listener
-            if (refreshJobBtn) {
-                refreshJobBtn.addEventListener('click', () => {
-                    if (this.selectedBranch) {
-                        this.loadCustomizationJob(this.selectedBranch.name);
-                    }
-                });
-            }
-
-            // Add customization job URL change listener
-            if (customizationJobUrl) {
-                customizationJobUrl.addEventListener('change', (e) => {
-                    if (e.target.value) {
-                        this.populateFieldsFromJob(e.target.value);
-                    }
-                });
-            }
-
-            // Close dropdown when clicking outside
-            document.addEventListener('click', (e) => {
-                if (!branchSelector.contains(e.target)) {
-                    this.closeBranchDropdown();
-                }
-            });
-        }
-    }
-
     // RN Creation methods moved to jenkins-rn-creation.js module for better separation of concerns
 }
 
